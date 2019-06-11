@@ -31,16 +31,18 @@ namespace rtspice::components {
       voltage_source(std::string id,
                      std::string np,
                      std::string nm,
-                     double val) : 
-        component{ std::move(id) },
-        nplus_{std::move(np)},
-        nminus_{std::move(nm)},
-        value_{val} {}
+                     double val);
+
+      virtual void register_nodes(circuit::circuit& c) override;
+      virtual void setup_entries(circuit::circuit& c) override;
+      virtual void fill(double t, double timestep) override;
 
     private:
-      node nplus_;
-      node nminus_;
-      double value_;
+      std::string a_, b_;
+      std::string j_;
+      double V_;
+
+      float *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
   };
 
   class current_source : public component {
@@ -48,16 +50,17 @@ namespace rtspice::components {
       current_source(std::string id,
                      std::string np,
                      std::string nm,
-                     double val) : 
-        component{ std::move(id) },
-        nplus_{std::move(np)},
-        nminus_{std::move(nm)},
-        value_{val} {}
+                     double val);
+
+      virtual void register_nodes(circuit::circuit& c) override;
+      virtual void setup_entries(circuit::circuit& c) override;
+      virtual void fill(double t, double timestep) override;
 
     private:
-      node nplus_;
-      node nminus_;
-      double value_;
+      std::string a_, b_;
+      double I_;
+      float *ba_, *bb_;
+
   };
 
 }		// -----  end of namespace rtspice::components  ----- 

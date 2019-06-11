@@ -21,21 +21,11 @@
 #include <memory>
 #include <string>
 
+namespace rtspice::circuit {
+  class circuit;
+}
+
 namespace rtspice::components {
-
-  /*!
-   *  @brief node id and offset pair
-   */
-  struct node {
-
-    node() {}
-
-    node(std::string _id, std::size_t _offset = ~std::size_t{}):
-      id{std::move(_id)}, offset{_offset} {}
-
-    std::string id;
-    std::size_t offset;
-  };
 
   /*!
    *  @brief component base class
@@ -46,6 +36,14 @@ namespace rtspice::components {
       component(std::string id) : id_{std::move(id)} {}
       std::string id_;
     public:
+
+      //tells the names of all needed variables
+      virtual void register_nodes(circuit::circuit& circuit) = 0;
+
+      //recover the address of 
+      virtual void setup_entries(circuit::circuit& circuit) = 0;
+
+      virtual void fill(double t, double timestep) {}
 
       auto& id() const noexcept { return id_; }
       using ptr = std::shared_ptr<component>;

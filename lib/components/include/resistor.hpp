@@ -30,16 +30,18 @@ namespace rtspice::components {
       linear_resistor(std::string id,
                       std::string np,
                       std::string nm,
-                      double val) : 
-        component{ std::move(id) },
-        nplus_{std::move(np)},
-        nminus_{std::move(nm)},
-        value_{val} {}
+                      double val);
+
+      virtual void register_nodes(circuit::circuit& c) override;
+      virtual void setup_entries(circuit::circuit& c) override;
+      virtual void fill(double t, double timestep) override;
 
     private:
-      node nplus_;
-      node nminus_;
-      double value_;
+      std::string a_, b_;
+      double R_, G_;
+
+      //required matrix references
+      float *Aaa_, *Aab_, *Aba_, *Abb_;
 
   };
 

@@ -1,0 +1,19 @@
+1 - setup linear system solver
+  * vectors for JA, IA and A
+  * vector  for b
+
+2 - setup component-node registration
+  * register node names and assign an address for each used position in
+      A and b
+  * dummy unused variable for ground node references in A, b.
+  * constant dummy variable for ground node in x(n) and x'(n+1)
+
+3 - setup behavioural filling of the linear system:
+  * pass x(n), x'(n+1) and timestep for components: each component handles
+      its appropriate stamping
+      a. first, linear static components: sources and resistors
+      b. nonlinear static components
+      c. dynamic linear components
+      d. dynamic nonlinear components
+
+4 - graphing gui? which variables to save?
