@@ -53,11 +53,11 @@ namespace rtspice::circuit {
         magma_int_t m, nnz;
         //CPU side
         magma_index_t              *row, *col;  //indices for the sparse matrix
-        float                      *val;       //the sparse matrix entries
-        float                      *sources;   //the source vector
-        float                      *sol, *state;//current state and next state
+        float                      *A;          //the sparse matrix entries
+        float                      *b;          //the source vector
+        float                      *x, *state;  //current state and next state
 
-        magma_s_matrix             A{Magma_CSR}, b{Magma_CSR}, x_{Magma_CSR};
+        magma_s_matrix             dA{Magma_CSR}, db{Magma_CSR}, dx{Magma_CSR};
 
         float                      ground_entry; //dummy address for stamping
                                                   //of ground nodes
@@ -65,11 +65,6 @@ namespace rtspice::circuit {
         const float                ground_state = 0; //dummy address for
                                                       //reading of ground node
                                                       //state
-        //Device side
-        magma_s_matrix             dA{Magma_CSR};       //device-side matrix
-        magma_s_matrix             db{Magma_CSR};       //device-side source vector
-        magma_s_matrix             dx_{Magma_CSR};      //device-side solution
-
       } system_;
 
       void setup_nodes_();
@@ -98,14 +93,14 @@ namespace rtspice::circuit {
       const float* get_x(const std::string& node_name) const;
 
       //recover address of current solution entry
-      const float* get_x_(const std::string& node_name) const;
+      const float* get_state(const std::string& node_name) const;
 
       auto& nodes() const {
         return nodes_.names;
       }
 
       auto solution(const std::string& node_name) const {
-        return system_.sol[nodes_.names.at(node_name)];
+        return system_.x[nodes_.names.at(node_name)];
       }
   };
 
