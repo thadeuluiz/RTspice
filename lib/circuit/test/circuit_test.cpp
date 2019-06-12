@@ -32,7 +32,7 @@ using namespace rtspice::components;
 using std::vector;
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
-using std::chrono::duration;
+using std::chrono::microseconds;
 
 using rtspice::circuit::circuit;
 
@@ -62,15 +62,17 @@ SCENARIO("circuit initialization", "[circuit]") {
     THEN("stepping succeeds"){
       circuit c{components};
 
-      constexpr auto NITER = 100000;
+      constexpr auto NITER = 10000;
+
+      c.step_();
 
       const auto start = high_resolution_clock::now();
       
       for(auto i = 0; i < NITER; i++) c.step_();
 
       const auto delta = high_resolution_clock::now() - start;
-      const auto avgTime = duration_cast<duration<double>>(delta).count()/NITER;
-      INFO( "average iteration time: " << avgTime );
+      const auto avgTime = duration_cast<microseconds>(delta).count()/NITER;
+      INFO( "average iteration time: " << avgTime << " us");
 
       REQUIRE(c.solution("1") == Approx(2.0));
       REQUIRE(c.solution("2") == Approx(1.0));

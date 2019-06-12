@@ -50,43 +50,29 @@ namespace rtspice::circuit {
 
     //prepare host and device matrices
     magma_scsrset(system_.m, system_.m,
-                  system_.row, system_.col, system_.val,
-                  &system_.A,
+                  system_.row, system_.col, system_.A,
+                  &system_.dA,
                   context_.queue);
-
-    magma_s_mtransfer(system_.A, &system_.dA,
-                      Magma_CPU, Magma_DEV,
-                      context_.queue);
 
     //the source vector
     magma_svset(system_.m, 1,
-                system_.sources, &system_.b,
+                system_.b, &system_.db,
                 context_.queue);
-
-    magma_s_mtransfer(system_.b, &system_.db,
-                      Magma_CPU, Magma_DEV,
-                      context_.queue);
 
     //and the solution vector
     magma_svset(system_.m, 1,
-                system_.sol, &system_.x_,
+                system_.x, &system_.dx,
                 context_.queue);
 
-    magma_s_mtransfer(system_.x_, &system_.dx_,
-                      Magma_CPU, Magma_DEV,
-                      context_.queue);
+    //trick magma into thinking this is gpu memory
+    system_.dA.memory_location = Magma_DEV;
+    system_.db.memory_location = Magma_DEV;
+    system_.dx.memory_location = Magma_DEV;
 
-    assert(system_.A.val  == system_.val);
-    assert(system_.b.val  == system_.sources);
-    assert(system_.x_.val == system_.sol);
-
-    assert(system_.dA.val  != nullptr);
-    assert(system_.db.val  != nullptr);
-    assert(system_.dx_.val != nullptr);
 
     auto& opts = context_.opts;
 
-    opts.solver_par.solver     = Magma_GMRES;
+    opts.solver_par.solver     = Magma_CGS;
     opts.solver_par.restart    = 30;
     opts.solver_par.maxiter    = 1000;
     opts.solver_par.rtol       = 1e-7;
@@ -107,23 +93,14 @@ namespace rtspice::circuit {
                            queue);
 
     //release host buffers
-    magma_free_pinned(system_.row);
-    magma_free_pinned(system_.col);
-    magma_free_pinned(system_.val);
-    magma_free_pinned(system_.sources);
+    magma_free(system_.row);
+    magma_free(system_.col);
 
-    magma_free_pinned(system_.sol);
-    magma_free_pinned(system_.state);
+    cudaFree(system_.A);
+    cudaFree(system_.b);
+    cudaFree(system_.x);
 
-    //release host matrices
-    magma_smfree(&system_.A, queue);
-    magma_smfree(&system_.b, queue);
-    magma_smfree(&system_.x_,queue);
-
-    //release device matrices
-    magma_smfree(&system_.dA, queue);
-    magma_smfree(&system_.db, queue);
-    magma_smfree(&system_.dx_,queue);
+    magma_free_cpu(system_.state);
 
     magma_queue_destroy(queue);
     magma_finalize();
@@ -146,13 +123,14 @@ namespace rtspice::circuit {
     system_.nnz = nnz;
 
     //allocate index and value buffers
-    magma_index_malloc_pinned(&system_.row, m+1);
-    magma_index_malloc_pinned(&system_.col, nnz);
-    magma_smalloc_pinned(&system_.val, nnz);
-    magma_smalloc_pinned(&system_.sources, m);
+    cudaMallocManaged(&system_.row, (m+1)*sizeof(magma_index_t));
+    cudaMallocManaged(&system_.col, (nnz)*sizeof(magma_index_t));
 
-    magma_smalloc_pinned(&system_.sol, m);
-    magma_smalloc_pinned(&system_.state, m);
+    cudaMallocManaged(&system_.A, nnz*sizeof(float));
+    cudaMallocManaged(&system_.b, m  *sizeof(float));
+    cudaMallocManaged(&system_.x, m  *sizeof(float));
+
+    magma_smalloc_cpu(&system_.state, m);
 
     auto name_it = nodes_.names.cbegin();
     auto coordinate_it = nodes_.address.begin();
@@ -169,7 +147,6 @@ namespace rtspice::circuit {
           [](auto&& rname, auto&& kv){ return rname < kv.first.first; });
 
       //current row entries are in [coordinate_it, upper_bound)
-
       magma_index_t col_offset = system_.row[row]; //offset onto col vector
       magma_index_t row_entry  = 0;
 
@@ -179,7 +156,7 @@ namespace rtspice::circuit {
         const auto col = nodes_.names.at(col_name);
 
         system_.col[col_offset + row_entry] = col;
-        coordinate_it->second = &system_.val[col_offset + row_entry];
+        coordinate_it->second = &system_.A[col_offset + row_entry];
 
       }
 
@@ -198,31 +175,16 @@ namespace rtspice::circuit {
     const auto m   = system_.m;
 
     //clear the buffers
-    fill_n(system_.val    , nnz,  0.0f);
-    fill_n(system_.sources, m,    0.0f);
+    fill_n(system_.A, nnz,  0.0f);
+    fill_n(system_.b, m,    0.0f);
 
     //stamp the system
     for(auto&& c: components_) c->fill(0,0);
 
-    //pass new data to gpu
-    magma_ssetvector_async(nnz,
-                           system_.A.val, 1,
-                           system_.dA.dval, 1,
-                           context_.queue);
-
-    magma_ssetvector_async(m,
-                           system_.b.val, 1,
-                           system_.db.dval, 1,
-                           context_.queue);
-
     auto& opts = context_.opts;
 
-    magma_s_solver(system_.dA, system_.db, &system_.dx_, &opts, context_.queue );
-
-    magma_sgetvector(m,
-                     system_.dx_.dval, 1,
-                     system_.x_.val, 1,
-                     context_.queue);
+    magma_s_solver(system_.dA, system_.db, &system_.dx, &opts, context_.queue );
+    //magma_scgs(system_.dA, system_.db, &system_.dx, &opts.solver_par, context_.queue);
 
     const auto numiter = opts.solver_par.numiter;
 
@@ -249,19 +211,19 @@ namespace rtspice::circuit {
   float* circuit::get_b(const string& e) {
     if(e == "0")
       return &system_.ground_entry;
-    return &system_.sources[nodes_.names.at(e)];
+    return &system_.b[nodes_.names.at(e)];
   }
 
   const float* circuit::get_x(const string& n) const {
     if(n == "0")
       return &system_.ground_state;
-    return &system_.state[nodes_.names.at(n)];
+    return &system_.x[nodes_.names.at(n)];
   }
 
-  const float* circuit::get_x_(const string& n) const {
+  const float* circuit::get_state(const string& n) const {
     if(n == "0")
       return &system_.ground_state;
-    return &system_.sol[nodes_.names.at(n)];
+    return &system_.state[nodes_.names.at(n)];
   }
 
 } // -----  end of namespace rtspice::circuit  -----
