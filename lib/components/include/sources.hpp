@@ -25,6 +25,8 @@
 
 namespace rtspice::components {
 
+  using real_t = circuit::circuit::real_t;
+
   /*!
    * @brief generalized independent current source
    *
@@ -71,8 +73,8 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_;
       F f_;
-      float *ba_, *bb_;
-      const float *t_;
+      real_t *ba_, *bb_;
+      const real_t *t_;
   };
 
   /*!
@@ -87,6 +89,7 @@ namespace rtspice::components {
   template<class F>
   class voltage_source : public component {
     public:
+
       virtual bool is_static()    const override { return F::static_; }
       virtual bool is_dynamic()   const override { return F::dynamic; }
       virtual bool is_nonlinear() const override { return false; }
@@ -131,10 +134,10 @@ namespace rtspice::components {
 
         const auto V = f_(*t_);
 
-        *Aaj_ += 1.0f;
-        *Abj_ -= 1.0f;
-        *Aja_ -= 1.0f;
-        *Ajb_ += 1.0f;
+        *Aaj_ += 1.0;
+        *Abj_ -= 1.0;
+        *Aja_ -= 1.0;
+        *Ajb_ += 1.0;
         *bj_  -= V;
 
       }
@@ -142,8 +145,8 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nj_;
       F f_;
-      float *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
-      const float* t_;
+      real_t *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
+      const real_t* t_;
   };
 
   /*!
@@ -160,7 +163,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  float val) :
+                  real_t val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -199,11 +202,11 @@ namespace rtspice::components {
 
       virtual void fill() override {
 
-        *Aaj_ += 1.0f;
-        *Abj_ -= 1.0f;
+        *Aaj_ += 1.0;
+        *Abj_ -= 1.0;
 
-        *Aja_ -= 1.0f;
-        *Ajb_ += 1.0f;
+        *Aja_ -= 1.0;
+        *Ajb_ += 1.0;
         *Ajc_ += Av_;
         *Ajd_ -= Av_;
 
@@ -211,8 +214,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const float Av_;
-      float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
+      const real_t Av_;
+      real_t *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
   };
 
   /*!
@@ -229,7 +232,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  float val) :
+                  real_t val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -270,18 +273,18 @@ namespace rtspice::components {
 
         *Aaj_ += Ai_;
         *Abj_ -= Ai_;
-        *Acj_ += 1.0f;
-        *Adj_ -= 1.0f;
+        *Acj_ += 1.0;
+        *Adj_ -= 1.0;
 
-        *Ajc_ -= 1.0f;
-        *Ajd_ += 1.0f;
+        *Ajc_ -= 1.0;
+        *Ajd_ += 1.0;
 
       }
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const float Ai_;
-      float *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
+      const real_t Ai_;
+      real_t *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
   };
 
   /*!
@@ -298,7 +301,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  float val) :
+                  real_t val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -340,8 +343,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_;
-      const float Gm_;
-      float *Aac_, *Aad_, *Abc_, *Abd_;
+      const real_t Gm_;
+      real_t *Aac_, *Aad_, *Abc_, *Abd_;
   };
 
   /*!
@@ -358,7 +361,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  float val) :
+                  real_t val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -413,17 +416,17 @@ namespace rtspice::components {
 
       virtual void fill() override {
 
-        *Aay_ += 1.0f;
-        *Aby_ -= 1.0f;
+        *Aay_ += 1.0;
+        *Aby_ -= 1.0;
 
-        *Acx_ += 1.0f;
-        *Adx_ -= 1.0f;
+        *Acx_ += 1.0;
+        *Adx_ -= 1.0;
 
-        *Axc_ -= 1.0f;
-        *Axd_ += 1.0f;
+        *Axc_ -= 1.0;
+        *Axd_ += 1.0;
 
-        *Aya_ -= 1.0f;
-        *Ayb_ += 1.0f;
+        *Aya_ -= 1.0;
+        *Ayb_ += 1.0;
 
         *Ayx_ += Rm_;
 
@@ -431,8 +434,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nx_, ny_;
-      const float Rm_;
-      float *Aay_, *Aby_, *Acx_, *Adx_,
+      const real_t Rm_;
+      real_t *Aay_, *Aby_, *Acx_, *Adx_,
             *Axc_, *Axd_, *Aya_, *Ayb_, *Ayx_;
   };
 
@@ -445,15 +448,15 @@ namespace rtspice::components {
       static constexpr bool static_  = true;
       static constexpr bool dynamic  = false;
 
-      dc_function(float val) :
+      dc_function(real_t val) :
         val_{ val } {}
 
-      float operator()(float) {
+      real_t operator()(real_t) {
         return val_;
       }
 
     private:
-      const float val_;
+      const real_t val_;
   };
 
   /*!
@@ -465,13 +468,17 @@ namespace rtspice::components {
       static constexpr bool static_  = false;
       static constexpr bool dynamic  = true;
 
-      sine_function(float A, float f, float phase) :
+      sine_function(real_t A, real_t f, real_t phase = 0.0) :
         A_{ A },
-        w_{ 8.0f*std::atan(1.0f)*f }, //2 pi f
-        phi_{ std::atan(1.0f)*phase/45.0f } {} //phase*pi/180
+        w_( 8.0*std::atan(1.0)*f ), //2 pi f
+        phi_( std::atan(1.0)*phase/45.0 ) {} //phase*pi/180
+
+      real_t operator()(real_t t) const {
+        return A_*std::sin(w_*t + phi_);
+      }
 
     private:
-      const float A_, w_, phi_;
+      const real_t A_, w_, phi_;
 
   };
 
@@ -481,9 +488,6 @@ namespace rtspice::components {
   using ac_current = current_source<sine_function>;
   using ac_voltage = voltage_source<sine_function>;
 
-
-
 }		// -----  end of namespace rtspice::components  -----
-
 
 #endif   // ----- #ifndef source_INC  -----
