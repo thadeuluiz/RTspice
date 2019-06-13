@@ -20,32 +20,209 @@
 
 #include <string>
 
+#include "circuit.hpp"
 #include "component.hpp"
 
 namespace rtspice::components {
 
+  /*!
+   * @brief basic resistor class
+   *
+   * optimized when compared to nonlinear version, as filling only happens once,
+   * and there is no need to evaluate f or df
   class linear_resistor : public component {
     public:
+
+      virtual bool is_static()    const override { return true; }
+      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_nonlinear() const override { return false; }
 
       linear_resistor(std::string id,
                       std::string np,
                       std::string nm,
-                      double val);
+                      float val) :
+        component{std::move(id)},
+        na_{std::move(np)},
+        nb_{std::move(nm)},
+        G_{1.0f/val} {}
 
-      virtual void register_nodes(circuit::circuit& c) override;
-      virtual void setup_entries(circuit::circuit& c) override;
-      virtual void fill(double t, double timestep) override;
+      virtual void register_(circuit::circuit& circuit) override {
+
+        circuit.register_node(na_);
+        circuit.register_node(nb_);
+
+        circuit.register_entry({na_, na_});
+        circuit.register_entry({na_, nb_});
+        circuit.register_entry({nb_, na_});
+        circuit.register_entry({nb_, nb_});
+
+      }
+
+      virtual void setup(circuit::circuit& circuit) override {
+
+        Aaa_ = circuit.get_A({na_, na_});
+        Aab_ = circuit.get_A({na_, nb_});
+        Aba_ = circuit.get_A({nb_, na_});
+        Abb_ = circuit.get_A({nb_, nb_});
+
+      }
+
+      virtual void fill() override {
+        *Aaa_ += G_;
+        *Aab_ -= G_;
+        *Aba_ -= G_;
+        *Abb_ += G_;
+      }
 
     private:
-      std::string a_, b_;
-      double R_, G_;
-
-      //required matrix references
+      const std::string na_, nb_;
+      const float G_;
       float *Aaa_, *Aab_, *Aba_, *Abb_;
+  };
+   */
 
+  /*!
+   * @brief generalized resistance template
+   *
+   * takes a class F, representing the transfer function j(v_ab). F must have an
+   * operator() accepting the tension across the device, and must return
+   * j(v_ab) and j'(v_ab) in a type that is compatible with structured bindings.
+   * The static and nonlinear properties are passed through static constants
+   * of F named 'static', 'dynamic', and 'nonlinear'
+   *
+   */
+  template<class F>
+  class resistor : public component {
+    public:
+      template<class... Args>
+      resistor(std::string id,
+               std::string na,
+               std::string nb,
+               Args&&... args) :
+        component{ std::move(id) },
+        na_{ std::move(na) },
+        nb_{ std::move(nb) },
+        f_(std::forward<Args>(args)...) {}
+
+      virtual bool is_static()    const override { return F::static_; }
+      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear; }
+
+      virtual void register_(circuit::circuit& c) override {
+
+        c.register_node(na_);
+        c.register_node(nb_);
+
+        c.register_entry({na_, na_});
+        c.register_entry({na_, nb_});
+        c.register_entry({nb_, na_});
+        c.register_entry({nb_, nb_});
+
+      }
+
+      virtual void setup(circuit::circuit& c) override {
+
+        Aaa_ = c.get_A({na_, na_});
+        Aab_ = c.get_A({na_, nb_});
+        Aba_ = c.get_A({nb_, na_});
+        Abb_ = c.get_A({nb_, nb_});
+
+        ba_  = c.get_b(na_);
+        bb_  = c.get_b(nb_);
+
+        xa_  = c.get_x(na_);
+        xb_  = c.get_x(nb_);
+      }
+
+      virtual void fill() override {
+
+        const auto v = *xa_ - *xb_;
+        const auto [f, df] = f_(v);
+
+        const auto G = df;
+        const auto I = f - G*v;
+*Aaa_ += G;
+        *Aab_ -= G;
+        *Aba_ -= G;
+        *Abb_ += G;
+
+        *ba_  -= I;
+        *bb_  += I;
+
+      }
+
+    private:
+      const std::string na_, nb_;
+      F f_;
+
+      //system references
+      float *Aaa_, *Aab_, *Aba_, *Abb_;
+      float *ba_, *bb_;
+      const float *xa_, *xb_;
   };
 
+  /*!
+   * @brief class implementing linear resistance characteristics.
+   *
+   */
+  class linear_resistance {
+    public:
 
-}		// -----  end of namespace rtspice::components  ----- 
+      static constexpr bool static_   = true;
+      static constexpr bool nonlinear = false;
 
-#endif   // ----- #ifndef resistor_INC  ----- 
+      linear_resistance(float R) :
+        G_{ 1.0f/R } {}
+
+      auto operator()(float v) const {
+        return std::make_pair(G_*v, G_);
+      }
+
+    private:
+      const float G_;
+  };
+
+  class diode_resistance {
+    public:
+      static constexpr bool static_   = false;
+      static constexpr bool nonlinear = true;
+
+      diode_resistance(float IS, float N) :
+        IS_{ IS },
+        N_Vt_{ N * Vt },
+        e_sat_ { IS_*(std::exp(v_knee/N_Vt_) - 1.0f) },
+        df_sat_{ IS_*std::exp(v_knee/N_Vt_)/N_Vt_ } { }
+
+      auto operator()(float v) const {
+
+        if(v < v_knee) {
+
+          const auto e  = std::exp(v/N_Vt_);
+          const auto f  = IS_*(e-1.0f);
+          const auto df = IS_*e/N_Vt_;
+
+          return std::make_pair(f, df);
+        } else {
+          const auto f = e_sat_ + df_sat_*(v-v_knee);
+          return std::make_pair(f, df_sat_);
+        }
+
+      }
+
+    private:
+
+      static constexpr auto k = 1.3806504e-23;
+      static constexpr auto q = 1.602176487e-19; /* A s */
+      static constexpr float Vt = k*300.0/q;
+
+      static constexpr float v_knee = 0.8f;
+
+      const float IS_, N_Vt_, e_sat_, df_sat_;
+  };
+
+  using linear_resistor = resistor<linear_resistance>;
+  using basic_diode     = resistor<diode_resistance>;
+
+}		// -----  end of namespace rtspice::components  -----
+
+#endif   // ----- #ifndef resistor_INC  -----

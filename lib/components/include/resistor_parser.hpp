@@ -36,7 +36,7 @@ namespace rtspice::components::parser {
 
       using qi::alnum;
       using qi::lit;
-      using qi::double_;
+      using qi::float_;
 
       using qi::_val;
       using qi::_1;
@@ -48,7 +48,7 @@ namespace rtspice::components::parser {
 
       id_ %= +alnum;
 
-      linear_resistor_ = (id_ >> id_ >> id_ >> double_)
+      linear_resistor_ = (id_ >> id_ >> id_ >> float_)
         [_val = bind(make_component<linear_resistor>, _1, _2, _3, _4)];
 
       start_ %=  &lit('R') >> linear_resistor_;

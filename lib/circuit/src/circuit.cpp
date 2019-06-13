@@ -16,7 +16,6 @@
  */
 
 #include <cassert>
-
 #include <algorithm>
 
 #include <cuda_runtime.h>
@@ -24,87 +23,108 @@
 #include "circuit.hpp"
 
 using std::vector;
+using std::string;
 using std::move;
 using std::pair;
-using std::string;
+
 using std::fill_n;
+using std::copy_n;
+using std::copy_if;
 
 namespace rtspice::circuit {
 
-  circuit::circuit(vector<components::component::ptr> components) :
-    components_{move(components)} {
+  using components::component;
 
-    //initialize context
-    assert((magma_init() == MAGMA_SUCCESS) && "error initializing magma");
-    magma_queue_create(0, &context_.queue);
-    assert((context_.queue != NULL) && "error creating magma queue");
+  circuit::circuit(vector<component::ptr> components) {
 
-    //collect all nodes and entries
-    for(auto& c: components_) c->register_nodes(*this);
+      setup_context_();              //init cuda
+      setup_components_(components); //get component classes
 
-    //prepare matrices
-    setup_nodes_();
+      register_nodes_();             //get needed variables
+      setup_system_();               //allocate linear system memory
+      setup_nodes_();                //feed system pointers to components
 
-    //feed the system pointers to the components
-    for(auto& c: components_) c->setup_entries(*this);
+      init_components_();
 
-    //prepare host and device matrices
-    magma_scsrset(system_.m, system_.m,
-                  system_.row, system_.col, system_.A,
-                  &system_.dA,
-                  context_.queue);
-
-    //the source vector
-    magma_svset(system_.m, 1,
-                system_.b, &system_.db,
-                context_.queue);
-
-    //and the solution vector
-    magma_svset(system_.m, 1,
-                system_.x, &system_.dx,
-                context_.queue);
-
-    //trick magma into thinking this is gpu memory
-    system_.dA.memory_location = Magma_DEV;
-    system_.db.memory_location = Magma_DEV;
-    system_.dx.memory_location = Magma_DEV;
+      setup_static_();               //feed static stamps
 
 
-    auto& opts = context_.opts;
-
-    opts.solver_par.solver     = Magma_CGS;
-    opts.solver_par.restart    = 30;
-    opts.solver_par.maxiter    = 1000;
-    opts.solver_par.rtol       = 1e-7;
-    //opts.precond_par.solver    = Magma_ILU;
-    //opts.precond_par.levels    = 0;
-    //opts.precond_par.trisolver = Magma_CUSOLVE;
-
-    magma_ssolverinfo_init(&opts.solver_par, &opts.precond_par, context_.queue);
+      printf("created circuit with %zu nodes\n", nodes_.names.size());
+      printf("nnz A = %zu\n", system_.nnz);
 
   }
 
   circuit::~circuit() {
+    teardown_system_();
+    teardown_context_();
+  }
 
-    const auto& queue = context_.queue;
-    //release opts
-    magma_ssolverinfo_free(&context_.opts.solver_par,
-                           &context_.opts.precond_par,
-                           queue);
+  void circuit::setup_components_(const vector<component::ptr>& comps) {
+    //split components into classes
+    copy_if(comps.begin(), comps.end(),
+        back_inserter(components_.static_),
+        [](auto&& c) { return c->is_static(); });
 
-    //release host buffers
-    magma_free(system_.row);
-    magma_free(system_.col);
+    copy_if(comps.begin(), comps.end(),
+        back_inserter(components_.dynamic),
+        [](auto&& c) { return c->is_dynamic(); });
 
-    cudaFree(system_.A);
-    cudaFree(system_.b);
-    cudaFree(system_.x);
+    copy_if(comps.begin(), comps.end(),
+        back_inserter(components_.nonlinear),
+        [](auto&& c) { return c->is_nonlinear(); });
+  }
 
-    magma_free_cpu(system_.state);
+  void circuit::setup_context_() {
+    //initialize context
+    int status;
+    status = cusparseCreate(&context_.sparse_handle);
+    assert(status == CUSPARSE_STATUS_SUCCESS && "cuSolver initialization failure");
 
-    magma_queue_destroy(queue);
-    magma_finalize();
+    status = cusolverSpCreate(&context_.solver_handle);
+    assert(status == CUSOLVER_STATUS_SUCCESS && "cuSolver initialization failure");
+  }
 
+  void circuit::register_nodes_() {
+
+    for(auto&& c: components_.static_)   c->register_(*this);
+    for(auto&& c: components_.dynamic)   c->register_(*this);
+    for(auto&& c: components_.nonlinear) c->register_(*this);
+
+  }
+
+  void circuit::setup_system_() {
+
+    const auto m   = nodes_.names.size();
+    const auto nnz = nodes_.pointers.size();
+
+    system_.m   = m;
+    system_.nnz = nnz;
+
+    //allocate index and value buffers
+    system_.row = cuda_malloc_<int>(m+1);
+    system_.col = cuda_malloc_<int>(nnz);
+
+    system_.A_static  = cuda_malloc_<float>(nnz);
+    system_.A_dynamic = cuda_malloc_<float>(nnz);
+    system_.A         = cuda_malloc_<float>(nnz);
+
+    system_.b_static  = cuda_malloc_<float>(m);
+    system_.b_dynamic = cuda_malloc_<float>(m);
+    system_.b         = cuda_malloc_<float>(m);
+
+    system_.state  = cuda_malloc_<float>(m);
+    system_.x      = cuda_malloc_<float>(m);
+    system_.x_prev = cuda_malloc_<float>(m);
+
+    //matrix descriptor
+    cusparseCreateMatDescr(&system_.desc_A);
+    cusparseSetMatType(system_.desc_A,      CUSPARSE_MATRIX_TYPE_GENERAL);
+    cusparseSetMatIndexBase(system_.desc_A, CUSPARSE_INDEX_BASE_ZERO);
+
+  }
+
+  void circuit::teardown_system_() {
+    cusparseDestroyMatDescr(system_.desc_A);
   }
 
   void circuit::setup_nodes_() {
@@ -116,79 +136,155 @@ namespace rtspice::circuit {
         nodes_.names.end(),
         [i = 0](auto&& p) mutable { p.second = i++; });
 
-    const auto m   = nodes_.names.size();
-    const auto nnz = nodes_.address.size();
+    const auto m   = system_.m;
+    const auto nnz = system_.nnz;
 
-    system_.m = m;
-    system_.nnz = nnz;
+    auto row_begin = nodes_.pointers.begin();
 
-    //allocate index and value buffers
-    cudaMallocManaged(&system_.row, (m+1)*sizeof(magma_index_t));
-    cudaMallocManaged(&system_.col, (nnz)*sizeof(magma_index_t));
-
-    cudaMallocManaged(&system_.A, nnz*sizeof(float));
-    cudaMallocManaged(&system_.b, m  *sizeof(float));
-    cudaMallocManaged(&system_.x, m  *sizeof(float));
-
-    magma_smalloc_cpu(&system_.state, m);
-
-    auto name_it = nodes_.names.cbegin();
-    auto coordinate_it = nodes_.address.begin();
-
-    for(auto row = 0; row < m; ++row, ++name_it) {
+    for(auto& kv : nodes_.names) {
 
       //node name of current row
-      auto&& row_name = name_it->first;
+      const auto& row_name = kv.first;
+      const auto  row      = kv.second;
 
-      auto upper_bound = std::upper_bound(
-          coordinate_it,
-          nodes_.address.end(),
+      auto row_end = std::upper_bound(
+          row_begin,
+          nodes_.pointers.end(),
           row_name,
           [](auto&& rname, auto&& kv){ return rname < kv.first.first; });
 
-      //current row entries are in [coordinate_it, upper_bound)
-      magma_index_t col_offset = system_.row[row]; //offset onto col vector
-      magma_index_t row_entry  = 0;
+      //current row entries are in [row_begin, row_end)
+      auto offset = system_.row[row]; //offset onto col/value buffers
+      auto entry_no  = 0;
 
-      for(; coordinate_it != upper_bound; ++coordinate_it, ++row_entry) {
+      for(; row_begin != row_end; ++row_begin, ++entry_no) {
+        const auto& col_name = row_begin->first.second;
+        const auto  col_idx  = nodes_.names.at(col_name);
 
-        const auto& col_name = coordinate_it->first.second;
-        const auto col = nodes_.names.at(col_name);
-
-        system_.col[col_offset + row_entry] = col;
-        coordinate_it->second = &system_.A[col_offset + row_entry];
-
+        system_.col[offset + entry_no] = col_idx;
+        row_begin->second = &system_.A[offset + entry_no];
       }
 
       //advance row
-      system_.row[row+1] = system_.row[row] + row_entry;
+      system_.row[row+1] = system_.row[row] + entry_no;
     }
 
     assert(system_.row[m] == nnz && "row filling failure");
-    assert(coordinate_it == nodes_.address.end() && "not all coordinates used");
+    assert(row_begin == nodes_.pointers.end() && "not all coordinates used");
 
   }
 
-  magma_int_t circuit::step_() {
+  void circuit::teardown_context_() {
+
+    int status;
+    status = cusolverSpDestroy(context_.solver_handle);
+    assert(status == CUSOLVER_STATUS_SUCCESS && "solver cleanup failure");
+    status = cusparseDestroy(context_.sparse_handle);
+    assert(status == CUSPARSE_STATUS_SUCCESS && "sparse cleanup failure");
+
+  }
+
+  void circuit::init_components_() {
+
+    for(auto&& c: components_.static_)   c->setup(*this);
+    for(auto&& c: components_.dynamic)   c->setup(*this);
+    for(auto&& c: components_.nonlinear) c->setup(*this);
+
+  }
+
+  void circuit::setup_static_() {
+
+    fill_n(&system_.A[0], system_.nnz, 0.0f);
+    fill_n(&system_.b[0], system_.m, 0.0f);
+    fill_n(&system_.x[0], system_.m, 0.0f);
+
+    for(auto&& c: components_.static_) c->fill();
+
+    copy_n(&system_.A[0], system_.nnz, &system_.A_static[0]);
+    copy_n(&system_.A[0], system_.nnz, &system_.A_dynamic[0]); //for testing purposes
+
+    copy_n(&system_.b[0], system_.m,   &system_.b_static[0]);
+    copy_n(&system_.b[0], system_.m,   &system_.b_dynamic[0]);
+
+  }
+
+  int circuit::step_() {
 
     const auto nnz = system_.nnz;
     const auto m   = system_.m;
 
-    //clear the buffers
-    fill_n(system_.A, nnz,  0.0f);
-    fill_n(system_.b, m,    0.0f);
+    //prefill buffers
+    copy_n(&system_.A_dynamic[0], nnz, &system_.A[0]);
+    copy_n(&system_.b_dynamic[0], nnz, &system_.b[0]);
 
     //stamp the system
-    for(auto&& c: components_) c->fill(0,0);
+    for(auto&& c: components_.nonlinear) c->fill();
 
-    auto& opts = context_.opts;
+    int singular = 0;
+    const auto status = cusolverSpScsrlsvluHost(context_.solver_handle,
+        m, nnz, system_.desc_A,
+        &system_.A[0], &system_.row[0], &system_.col[0],
+        &system_.b[0],
+        1e-16,
+        0, //no reordering, leaks memory
+        &system_.x[0],
+        &singular);
 
-    magma_s_solver(system_.dA, system_.db, &system_.dx, &opts, context_.queue );
-    //magma_scgs(system_.dA, system_.db, &system_.dx, &opts.solver_par, context_.queue);
+    assert(status == CUSOLVER_STATUS_SUCCESS);
+    assert(singular == -1);
 
-    const auto numiter = opts.solver_par.numiter;
+    return status == CUSOLVER_STATUS_SUCCESS && singular == -1;
 
-    return numiter;
+  }
+
+  int circuit::nr_step_() {
+
+    const auto m   = system_.m;
+    const auto nnz = system_.nnz;
+
+    const auto rtol    = params_.rtol;
+    const auto atol    = params_.atol;
+    const auto maxiter = params_.maxiter;
+
+    //prefill with static data
+    copy_n(&system_.A_static[0], nnz, &system_.A[0]);
+    copy_n(&system_.b_static[0], nnz, &system_.b[0]);
+
+    //load dynamic data
+    for(auto&& c: components_.dynamic) c->fill();
+
+    //store in dynamic buffers
+    copy_n(&system_.A[0], nnz, &system_.A_dynamic[0]);
+    copy_n(&system_.b[0], nnz, &system_.b_dynamic[0]);
+
+    for(int i = 1; i <= maxiter; ++i) {
+
+      //hold previous attempt
+      copy_n(&system_.x[0], m, &system_.x_prev[0]);
+
+      //update attempt
+      if(!step_()) return -i;
+
+      //check for convergence
+      bool good = true;
+      for(auto _ = 0; _ < m; ++_) {
+
+        const auto true_value = system_.x[_];
+        const auto computed   = system_.x_prev[_];
+
+        const auto e = std::abs(true_value - computed);
+
+        if(e > rtol*std::abs(true_value) + atol) {
+          good = false;
+          break;
+        }
+      }
+
+      //all values converged
+      if(good) return i;
+    }
+
+    return -maxiter-1;
 
   }
 
@@ -199,31 +295,39 @@ namespace rtspice::circuit {
 
   void circuit::register_entry(const pair<string, string>& e) {
     if(e.first != "0" && e.second != "0") //skip ground node entries
-      nodes_.address.emplace(e, nullptr);
+      nodes_.pointers.emplace(e, nullptr);
   }
 
-  float* circuit::get_A(const pair<string, string>& e) {
-    if(e.first == "0" || e.second == "0")
-      return &system_.ground_entry;
-    return nodes_.address.at(e);
+  float* circuit::get_A(const pair<string, string>& ij) {
+    if(ij.first == "0" || ij.second == "0")
+      return &system_.ground_A;
+    return nodes_.pointers.at(ij);
   }
 
-  float* circuit::get_b(const string& e) {
-    if(e == "0")
-      return &system_.ground_entry;
-    return &system_.b[nodes_.names.at(e)];
+  float* circuit::get_b(const string& n) {
+    if(n == "0")
+      return &system_.ground_A;
+    return &system_.b[nodes_.names.at(n)];
   }
 
   const float* circuit::get_x(const string& n) const {
     if(n == "0")
-      return &system_.ground_state;
+      return &system_.ground_x;
     return &system_.x[nodes_.names.at(n)];
   }
 
   const float* circuit::get_state(const string& n) const {
     if(n == "0")
-      return &system_.ground_state;
+      return &system_.ground_x;
     return &system_.state[nodes_.names.at(n)];
+  }
+
+  const float* circuit::get_time() const {
+    return &system_.time;
+  }
+
+  const float* circuit::get_delta_time() const {
+    return &system_.delta_time;
   }
 
 } // -----  end of namespace rtspice::circuit  -----

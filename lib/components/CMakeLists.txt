@@ -1,6 +1,6 @@
-add_library(components src/resistor.cpp src/source.cpp)
-target_include_directories(components PUBLIC include/)
+add_library(components INTERFACE)
+target_include_directories(components INTERFACE include/)
 
-target_link_libraries(components PUBLIC circuit)
+target_link_libraries(components INTERFACE circuit)
 
 add_subdirectory(test/)

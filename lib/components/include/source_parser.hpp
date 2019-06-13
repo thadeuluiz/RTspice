@@ -21,7 +21,7 @@
 #define  source_parser_INC
 
 #include "component_parser.hpp"
-#include "source.hpp"
+#include "sources.hpp"
 
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_bind.hpp>
@@ -37,7 +37,7 @@ namespace rtspice::components::parser {
 
       using qi::alnum;
       using qi::lit;
-      using qi::double_;
+      using qi::float_;
 
       using qi::_val;
       using qi::_1;
@@ -49,8 +49,8 @@ namespace rtspice::components::parser {
 
       id_ %= +alnum;
 
-      independent_source_ = (id_ >> id_ >> id_ >> double_)
-        [_val = bind(make_component<voltage_source>, _1, _2, _3, _4)];
+      independent_source_ = (id_ >> id_ >> id_ >> float_)
+        [_val = bind(make_component<dc_voltage>, _1, _2, _3, _4)];
 
       start_ %=  &lit('V') >> independent_source_;
     };
@@ -68,7 +68,7 @@ namespace rtspice::components::parser {
     current_source_parser() : current_source_parser::base_type{start_} {
       using qi::alnum;
       using qi::lit;
-      using qi::double_;
+      using qi::float_;
 
       using qi::_val;
       using qi::_1;
@@ -80,8 +80,8 @@ namespace rtspice::components::parser {
 
       id_ %= +alnum;
 
-      independent_source_ = (id_ >> id_ >> id_ >> double_)
-        [_val = bind(make_component<current_source>, _1, _2, _3, _4)];
+      independent_source_ = (id_ >> id_ >> id_ >> float_)
+        [_val = bind(make_component<dc_current>, _1, _2, _3, _4)];
 
       start_ %=  &lit('I') >> independent_source_;
     };

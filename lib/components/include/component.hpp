@@ -32,18 +32,24 @@ namespace rtspice::components {
    */
   class component {
     private:
+
     protected:
       component(std::string id) : id_{std::move(id)} {}
       std::string id_;
     public:
 
-      //tells the names of all needed variables
-      virtual void register_nodes(circuit::circuit& circuit) = 0;
+      //enables optimization for matrix filling, by preserving static information
+      virtual bool is_static()    const = 0;
+      virtual bool is_dynamic()   const = 0;
+      virtual bool is_nonlinear() const = 0;
 
-      //recover the address of 
-      virtual void setup_entries(circuit::circuit& circuit) = 0;
+      //registers the names of all needed variables to the system
+      virtual void register_(circuit::circuit& circuit) = 0;
 
-      virtual void fill(double t, double timestep) {}
+      //recover the address of system entries
+      virtual void setup(circuit::circuit& circuit) = 0;
+
+      virtual void fill() = 0;
 
       auto& id() const noexcept { return id_; }
       using ptr = std::shared_ptr<component>;
