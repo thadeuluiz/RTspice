@@ -23,26 +23,35 @@
 
 #include "circuit.hpp"
 #include "resistor.hpp"
-#include "source.hpp"
+#include "sources.hpp"
 
 
 using namespace std::string_literals;
 using namespace rtspice::components;
 
 using std::vector;
+
 using std::chrono::high_resolution_clock;
-using std::chrono::duration_cast;
-using std::chrono::microseconds;
+using std::chrono::nanoseconds;
 
 using rtspice::circuit::circuit;
 
 SCENARIO("circuit initialization", "[circuit]") {
 
-  GIVEN("an component initialization vector") {
+  GIVEN("a component initialization vector") {
+
     vector<component::ptr> components {
-      make_component<linear_resistor>("R1", "1", "2", 1.0),
-      make_component<current_source> ("I1", "0", "1", 1.0),
-      make_component<linear_resistor>("R2", "2", "0", 1.0)
+      make_component<linear_resistor>("R1", "1", "2", 1.0f),
+      make_component<dc_voltage>     ("V1", "1", "0", 1.0f),
+      make_component<linear_resistor>("R2", "2", "0", 1.0f),
+      make_component<linear_resistor>("R3", "0", "3", 1e3f),
+      make_component<linear_resistor>("R4", "3", "4", 1e3f),
+      make_component<linear_resistor>("R5", "4", "5", 1e3f),
+      make_component<linear_resistor>("R6", "5", "6", 1e3f),
+      make_component<linear_resistor>("R7", "6", "7", 1e3f),
+      make_component<linear_resistor>("R8", "7", "8", 1e3f),
+      make_component<linear_resistor>("R9", "8", "9", 1e3f),
+      make_component<linear_resistor>("RA", "9", "0", 1e3f),
     };
 
     THEN("initialization succeeds"){
@@ -53,38 +62,83 @@ SCENARIO("circuit initialization", "[circuit]") {
       REQUIRE(nodes.find("0") == nodes.end());
       REQUIRE(nodes.find("1") != nodes.end());
       REQUIRE(nodes.find("2") != nodes.end());
-      REQUIRE(nodes.size()    == 2);
+      //REQUIRE(nodes.size()    == 3); //for V1 adds an extra node
       REQUIRE(nodes.at("1")   == 0);
       REQUIRE(nodes.at("2")   == 1);
 
     }
 
-    THEN("stepping succeeds"){
+    THEN("stepping succeeds") {
       circuit c{components};
 
-      constexpr auto NITER = 10000;
-
       c.step_();
+
+      REQUIRE(c.solution("1") == Approx(1.0f));
+      REQUIRE(c.solution("2") == Approx(0.5f));
+
+      constexpr auto NITER = 44100;
 
       const auto start = high_resolution_clock::now();
-      
-      for(auto i = 0; i < NITER; i++) c.step_();
+
+      for(auto i = 0; i < NITER; i++)
+        c.step_();
 
       const auto delta = high_resolution_clock::now() - start;
-      const auto avgTime = duration_cast<microseconds>(delta).count()/NITER;
-      INFO( "average iteration time: " << avgTime << " us");
+      const auto avgTime = nanoseconds{delta}.count()/NITER;
 
-      REQUIRE(c.solution("1") == Approx(2.0));
-      REQUIRE(c.solution("2") == Approx(1.0));
-
-      c.step_();
-
-      REQUIRE(c.solution("1") == Approx(2.0));
-      REQUIRE(c.solution("2") == Approx(1.0));
+      INFO( "average iteration time: " << avgTime << " ns");
+      REQUIRE(c.solution("1") == Approx(1.0f));
+      REQUIRE(c.solution("2") == Approx(0.5f));
 
     }
+
   }
 
+}
+
+SCENARIO("nonlinear simulation", "[circuit]") {
+
+  GIVEN("a nonlinear circuit (diode)") {
+
+    vector<component::ptr> components {
+      make_component<dc_current>     ("I1", "0", "1", 5.0e-3f),
+      make_component<linear_resistor>("R1", "1", "2", 2.2e+3f),
+      make_component<basic_diode>    ("D1", "2", "0", 4.352e-9f, 1.906f),
+    };
+    circuit c{components};
+
+    THEN("Newton-Raphson converges") {
+      {
+        const auto start = high_resolution_clock::now();
+
+        const auto i = c.nr_step_();
+
+        const auto delta = high_resolution_clock::now() - start;
+        const auto RunTimeDC = nanoseconds{delta}.count();
+
+
+        INFO("DC Runtime =  " << RunTimeDC << " ns");
+        INFO("V[diode] = " << *c.get_x("2") << " V");
+        REQUIRE( i > 0 );
+      }
+
+      {
+        const auto start = high_resolution_clock::now();
+
+        for(auto i = 0; i < 100; i++) c.step_();
+
+        const auto delta = high_resolution_clock::now() - start;
+        const auto RunTimeBasicStep = nanoseconds{delta}.count();
+
+
+        INFO("Average Runtime Basic Step =  " << RunTimeBasicStep/100 << " ns");
+        INFO("V[diode] = " << *c.get_x("2") << " V");
+        REQUIRE(true);
+      }
+
+    }
+
+  }
 
 
 }

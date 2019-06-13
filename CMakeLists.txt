@@ -4,11 +4,11 @@ project(rtspice LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(PkgConfig REQUIRED)
+#find_package(PkgConfig REQUIRED)
 
 # external packages
 find_package(CUDA REQUIRED)
-pkg_search_module(MAGMA REQUIRED magma)
+#pkg_search_module(MAGMA REQUIRED magma)
 
 include(CTest)
 
