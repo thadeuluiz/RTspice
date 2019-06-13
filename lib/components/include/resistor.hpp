@@ -25,6 +25,8 @@
 
 namespace rtspice::components {
 
+  using real_t = circuit::circuit::real_t;
+
   /*!
    * @brief basic resistor class
    *
@@ -141,14 +143,13 @@ namespace rtspice::components {
 
         const auto G = df;
         const auto I = f - G*v;
-*Aaa_ += G;
+        *Aaa_ += G;
         *Aab_ -= G;
         *Aba_ -= G;
         *Abb_ += G;
 
         *ba_  -= I;
         *bb_  += I;
-
       }
 
     private:
@@ -156,9 +157,9 @@ namespace rtspice::components {
       F f_;
 
       //system references
-      float *Aaa_, *Aab_, *Aba_, *Abb_;
-      float *ba_, *bb_;
-      const float *xa_, *xb_;
+      real_t *Aaa_, *Aab_, *Aba_, *Abb_;
+      real_t *ba_, *bb_;
+      const real_t *xa_, *xb_;
   };
 
   /*!
@@ -171,15 +172,15 @@ namespace rtspice::components {
       static constexpr bool static_   = true;
       static constexpr bool nonlinear = false;
 
-      linear_resistance(float R) :
-        G_{ 1.0f/R } {}
+      linear_resistance(real_t R) :
+        G_( 1.0/R ) {}
 
-      auto operator()(float v) const {
+      auto operator()(real_t v) const {
         return std::make_pair(G_*v, G_);
       }
 
     private:
-      const float G_;
+      const real_t G_;
   };
 
   class diode_resistance {
@@ -187,37 +188,37 @@ namespace rtspice::components {
       static constexpr bool static_   = false;
       static constexpr bool nonlinear = true;
 
-      diode_resistance(float IS, float N) :
+      diode_resistance(real_t IS, real_t N) :
         IS_{ IS },
         N_Vt_{ N * Vt },
-        e_sat_ { IS_*(std::exp(v_knee/N_Vt_) - 1.0f) },
-        df_sat_{ IS_*std::exp(v_knee/N_Vt_)/N_Vt_ } { }
+        e_sat_ ( IS_*(std::exp(v_knee/N_Vt_) - 1.0) ),
+        df_sat_( IS_*std::exp(v_knee/N_Vt_)/N_Vt_ ) { }
 
-      auto operator()(float v) const {
+      auto operator()(real_t v) const -> std::pair<real_t,real_t> {
 
         if(v < v_knee) {
 
           const auto e  = std::exp(v/N_Vt_);
-          const auto f  = IS_*(e-1.0f);
+          const auto f  = IS_*(e-1.0);
           const auto df = IS_*e/N_Vt_;
 
-          return std::make_pair(f, df);
+          return {f, df};
         } else {
           const auto f = e_sat_ + df_sat_*(v-v_knee);
-          return std::make_pair(f, df_sat_);
+          return {f, df_sat_};
         }
 
       }
 
     private:
 
-      static constexpr auto k = 1.3806504e-23;
-      static constexpr auto q = 1.602176487e-19; /* A s */
-      static constexpr float Vt = k*300.0/q;
+      static constexpr real_t k = 1.3806504e-23;
+      static constexpr real_t q = 1.602176487e-19; /* A s */
+      static constexpr real_t Vt = k*300.0/q;
 
-      static constexpr float v_knee = 0.8f;
+      static constexpr real_t v_knee = 0.75;
 
-      const float IS_, N_Vt_, e_sat_, df_sat_;
+      const real_t IS_, N_Vt_, e_sat_, df_sat_;
   };
 
   using linear_resistor = resistor<linear_resistance>;
