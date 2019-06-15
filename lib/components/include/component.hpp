@@ -31,11 +31,9 @@ namespace rtspice::components {
    *  @brief component base class
    */
   class component {
-    private:
-
     protected:
       component(std::string id) : id_{std::move(id)} {}
-      std::string id_;
+      const std::string id_;
     public:
 
       //enables optimization for matrix filling, by preserving static information
@@ -49,9 +47,9 @@ namespace rtspice::components {
       //recover the address of system entries
       virtual void setup(circuit::circuit& circuit) = 0;
 
-      virtual void fill() = 0;
+      virtual void fill() const noexcept = 0;
 
-      auto& id() const noexcept { return id_; }
+      const auto& id() const noexcept { return id_; }
       using ptr = std::shared_ptr<component>;
 
       virtual ~component() = default;
@@ -62,8 +60,7 @@ namespace rtspice::components {
    */
   template<class derived>
   constexpr auto make_component = [](auto&&... args) -> component::ptr {
-    auto ptr =  new derived{std::forward<decltype(args)>(args)...};
-    return component::ptr{ptr};
+    return  std::make_shared<derived>(std::forward<decltype(args)>(args)...);
   };
 
 }		// -----  end of namespace rtspice::components  -----

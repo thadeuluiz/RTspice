@@ -61,9 +61,9 @@ namespace rtspice::circuit {
       } components_;
 
       struct {
-        float rtol    = 1e-4;
-        float atol    = 1e-6;
-        int   maxiter = 100;
+        float rtol    = 1e-3;
+        float atol    = 1e-5;
+        int   maxiter = 30;
       } params_;
 
       struct {
@@ -153,6 +153,5 @@ namespace rtspice::circuit {
   };
 
 }		// -----  end of namespace rtspice::circuit  -----
-
 
 #endif   // ----- #ifndef circuit_INC  -----
