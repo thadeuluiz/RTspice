@@ -38,8 +38,8 @@ namespace rtspice::components {
   class current_source : public component {
     public:
 
-      virtual bool is_static()    const override { return F::static_; }
-      virtual bool is_dynamic()   const override { return F::dynamic; }
+      virtual bool is_static()    const override { return F::static_v; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return false; }
 
       template<class... Args>
@@ -50,7 +50,7 @@ namespace rtspice::components {
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
-        f_{ std::forward<Args>(args)... } {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
         c.register_node(na_);
@@ -63,7 +63,7 @@ namespace rtspice::components {
         t_ = c.get_time();
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
         const auto I = f_(*t_);
         *ba_ -= I;
         *bb_ += I;
@@ -71,7 +71,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_;
-      F f_;
+      const F f_;
       float *ba_, *bb_;
       const float *t_;
   };
@@ -80,7 +80,7 @@ namespace rtspice::components {
    * @brief generalized independent voltage source
    *
    * General voltage source, where the value of the voltage is determined by
-   * I(t). The class F must have an operator() accepting a time value. The
+   * V(t). The class F must have an operator() accepting a time value. The
    * static or dynamic information is passed through member constants
    * called 'static_' and 'dynamic'.
    *
@@ -89,8 +89,8 @@ namespace rtspice::components {
   class voltage_source : public component {
     public:
 
-      virtual bool is_static()    const override { return F::static_; }
-      virtual bool is_dynamic()   const override { return F::dynamic; }
+      virtual bool is_static()    const override { return F::static_v; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return false; }
 
       template<class... Args>
@@ -102,7 +102,7 @@ namespace rtspice::components {
         na_{ std::move(na) },
         nb_{ std::move(nb) },
         nj_{ "@J" + id_ },
-        f_(std::forward<Args>(args)...) {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
 
@@ -129,7 +129,7 @@ namespace rtspice::components {
 
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
 
         const auto V = f_(*t_);
 
@@ -143,33 +143,41 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nj_;
-      F f_;
+      const F f_;
       float *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
       const float* t_;
   };
 
   /*!
-   * @brief basic linear voltage amplifier, optimized for one-time filling
+   * @brief generalized voltage amplifier
+   *
+   * General voltage amplifier, where the value of the voltage is determined by
+   * V(v). The class F must have an operator() accepting the dependent voltage value.
+   * The linear or nonlinear information is passed through member constants
+   * called 'static_v' and 'nonlinear_v'.
+   *
    */
-  class linear_vcvs : public component {
+  template<class F>
+  class vcvs : public component {
     public:
-      virtual bool is_static()    const override { return true; }
+      virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return false; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
-      linear_vcvs(std::string id,
-                  std::string na,
-                  std::string nb,
-                  std::string nc,
-                  std::string nd,
-                  float val) :
+      template<class... Args>
+      vcvs(std::string id,
+           std::string na,
+           std::string nb,
+           std::string nc,
+           std::string nd,
+           Args&&... args) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
         nj_{ "@J" + id_ },
-        Av_{ val } {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
 
@@ -197,48 +205,71 @@ namespace rtspice::components {
         Ajc_ = c.get_A({nj_, nc_});
         Ajd_ = c.get_A({nj_, nd_});
 
+        xc_  = c.get_x(nc_);
+        xd_  = c.get_x(nd_);
+
+        bj_  = c.get_b(nj_);
+
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
+
+        const auto v = *xc_ - *xd_;
+        const auto [f, df] = f_(v);
+
+        const auto Av = df;
+        const auto V  = f - Av*v;
 
         *Aaj_ += 1.0;
         *Abj_ -= 1.0;
 
         *Aja_ -= 1.0;
         *Ajb_ += 1.0;
-        *Ajc_ += Av_;
-        *Ajd_ -= Av_;
+        *Ajc_ += Av;
+        *Ajd_ -= Av;
+
+        *bj_  -= V;
 
       }
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const float Av_;
+      const F f_;
       float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
+      float *bj_;
+      const float  *xc_, *xd_;
   };
 
   /*!
-   * @brief basic linear current amplifier, optimized for one-time filling
+   * @brief generalized current amplifier
+   *
+   * General current amplifier, where the value of the current is determined by
+   * I(i). The class F must have an operator() accepting the dependent current value.
+   * The linear or nonlinear information is passed through member constants
+   * called 'static_v' and 'nonlinear_v'.
+   *
    */
-  class linear_cccs : public component {
+  template<class F>
+  class cccs : public component {
     public:
-      virtual bool is_static()    const override { return true; }
+      virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return false; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
-      linear_cccs(std::string id,
-                  std::string na,
-                  std::string nb,
-                  std::string nc,
-                  std::string nd,
-                  float val) :
+      template<class... Args>
+      cccs(std::string id,
+           std::string na,
+           std::string nb,
+           std::string nc,
+           std::string nd,
+           Args&&... args) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
         nj_{ "@J" + id_ },
-        Ai_{ val } {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
 
@@ -266,47 +297,71 @@ namespace rtspice::components {
         Ajc_ = c.get_A({nj_, nc_});
         Ajd_ = c.get_A({nj_, nd_});
 
+        ba_  = c.get_b(na_);
+        bb_  = c.get_b(nb_);
+
+        xj_  = c.get_x(nj_);
+
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
 
-        *Aaj_ += Ai_;
-        *Abj_ -= Ai_;
+        const auto i = *xj_;
+        const auto [f, df] = f_(i);
+
+        const auto Ai = df;
+        const auto I  = f - Ai*i;
+
+        *Aaj_ += Ai;
+        *Abj_ -= Ai;
         *Acj_ += 1.0;
         *Adj_ -= 1.0;
 
         *Ajc_ -= 1.0;
         *Ajd_ += 1.0;
 
+        *ba_  -= I;
+        *bb_  += I;
+
       }
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const float Ai_;
+      const F f_;
       float *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
+      float *ba_, *bb_;
+      const float *xj_;
   };
 
   /*!
-   * @brief basic linear transconductor, optimized for one-time filling
+   * @brief generalized transconductor
+   *
+   * General transconductor, where the value of the voltage is determined by
+   * I(v). The class F must have an operator() accepting the dependent voltage value.
+   * The linear or nonlinear information is passed through member constants
+   * called 'static_v' and 'nonlinear_v'.
+   *
    */
-  class linear_vccs : public component {
+  template<class F>
+  class vccs : public component {
     public:
-      virtual bool is_static()    const override { return true; }
+      virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return false; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
-      linear_vccs(std::string id,
-                  std::string na,
-                  std::string nb,
-                  std::string nc,
-                  std::string nd,
-                  float val) :
+      template<class... Args>
+      vccs(std::string id,
+           std::string na,
+           std::string nb,
+           std::string nc,
+           std::string nd,
+           Args&&... args) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
-        Gm_{ val } {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
 
@@ -329,38 +384,64 @@ namespace rtspice::components {
         Abc_ = c.get_A({nb_, nc_});
         Abd_ = c.get_A({nb_, nd_});
 
+        ba_  = c.get_b(na_);
+        bb_  = c.get_b(nb_);
+
+        xc_  = c.get_x(nc_);
+        xd_  = c.get_x(nd_);
+
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
 
-        *Aac_ += Gm_;
-        *Aad_ -= Gm_;
-        *Abc_ -= Gm_;
-        *Abd_ += Gm_;
+        const auto v = *xc_ -*xd_;
+        const auto [f, df] = f_(v);
+
+        const auto Gm = df;
+        const auto I = f - Gm*v;
+
+        *Aac_ += Gm;
+        *Aad_ -= Gm;
+        *Abc_ -= Gm;
+        *Abd_ += Gm;
+
+        *ba_  -= I;
+        *bb_  += I;
 
       }
 
     private:
       const std::string na_, nb_, nc_, nd_;
-      const float Gm_;
+      const F f_;
+
       float *Aac_, *Aad_, *Abc_, *Abd_;
+      float *ba_, *bb_;
+      const float *xc_, *xd_;
   };
 
   /*!
-   * @brief basic linear transresistor, optimized for one-time filling
+   * @brief generalized transresistor
+   *
+   * General transresistor, where the value of the voltage is determined by
+   * V(i). The class F must have an operator() accepting the dependent current value.
+   * The linear or nonlinear information is passed through member constants
+   * called 'static_v' and 'nonlinear_v'.
+   *
    */
-  class linear_ccvs : public component {
+  template<class F>
+  class ccvs : public component {
     public:
-      virtual bool is_static()    const override { return true; }
+      virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return false; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
-      linear_ccvs(std::string id,
-                  std::string na,
-                  std::string nb,
-                  std::string nc,
-                  std::string nd,
-                  float val) :
+      template<class... Args>
+      ccvs(std::string id,
+           std::string na,
+           std::string nb,
+           std::string nc,
+           std::string nd,
+           Args&&... args) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -368,7 +449,7 @@ namespace rtspice::components {
         nd_{ std::move(nd) },
         nx_{ "@Jx" + id_ },
         ny_{ "@Jy" + id_ },
-        Rm_{ val } {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
 
@@ -411,46 +492,58 @@ namespace rtspice::components {
 
         Ayx_ = c.get_A({ny_, nx_});
 
+        by_  = c.get_b(ny_);
+
+        xx_  = c.get_x(nx_);
+
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
+
+        const auto j = *xx_;
+        const auto [f, df] = f_(j);
+
+        const auto Rm = df;
+        const auto V  = f - Rm*j;
 
         *Aay_ += 1.0;
         *Aby_ -= 1.0;
-
         *Acx_ += 1.0;
         *Adx_ -= 1.0;
-
         *Axc_ -= 1.0;
         *Axd_ += 1.0;
-
         *Aya_ -= 1.0;
         *Ayb_ += 1.0;
 
-        *Ayx_ += Rm_;
+        *Ayx_ += Rm;
+
+        *by_  -= V;
 
       }
 
     private:
       const std::string na_, nb_, nc_, nd_, nx_, ny_;
-      const float Rm_;
+      const F f_;
       float *Aay_, *Aby_, *Acx_, *Adx_,
             *Axc_, *Axd_, *Aya_, *Ayb_, *Ayx_;
+
+      float *by_;
+      const float *xx_;
   };
 
   /*!
    * @brief simple transfer function implementing DC source characteristics
    *
    */
-  class dc_function {
+  class constant_function {
     public:
-      static constexpr bool static_  = true;
-      static constexpr bool dynamic  = false;
+      static constexpr bool static_v   = true;
+      static constexpr bool dynamic_v  = false;
 
-      dc_function(float val) :
+      constant_function(float val) :
         val_{ val } {}
 
-      float operator()(float) {
+      inline float operator()(float) const noexcept {
         return val_;
       }
 
@@ -464,15 +557,15 @@ namespace rtspice::components {
    */
   class sine_function {
     public:
-      static constexpr bool static_  = false;
-      static constexpr bool dynamic  = true;
+      static constexpr bool static_v   = false;
+      static constexpr bool dynamic_v  = true;
 
       sine_function(float A, float f, float phase = 0.0) :
         A_{ A },
         w_( 8.0*std::atan(1.0)*f ), //2 pi f
         phi_( std::atan(1.0)*phase/45.0 ) {} //phase*pi/180
 
-      float operator()(float t) const {
+      inline float operator()(float t) const noexcept {
         return A_*std::sin(w_*t + phi_);
       }
 
@@ -486,13 +579,13 @@ namespace rtspice::components {
    */
   class external_function {
     public:
-      static constexpr bool static_  = false;
-      static constexpr bool dynamic  = true;
+      static constexpr bool static_v   = false;
+      static constexpr bool dynamic_v  = true;
 
       external_function(const std::atomic<float>& val) :
         val_{ val } {}
 
-      float operator()(float) {
+      inline float operator()(float) const noexcept {
         return val_.load();
       }
 
@@ -500,10 +593,28 @@ namespace rtspice::components {
       const std::atomic<float>& val_;
   };
 
+  /*!
+   * @brief linear transfer characteristics
+   */
+  class linear_transfer {
+    public:
 
+      static constexpr bool static_v   = true;
+      static constexpr bool nonlinear_v = false;
 
-  using dc_current = current_source<dc_function>;
-  using dc_voltage = voltage_source<dc_function>;
+      linear_transfer(float df) :
+        df_( df ) {}
+
+      inline auto operator()(float x) const noexcept {
+        return std::make_pair(df_*x, df_);
+      }
+
+    private:
+      const float df_;
+  };
+
+  using dc_current = current_source<constant_function>;
+  using dc_voltage = voltage_source<constant_function>;
 
   using ac_current = current_source<sine_function>;
   using ac_voltage = voltage_source<sine_function>;

@@ -72,7 +72,7 @@ namespace rtspice::components {
 
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
         *Aaj_ += 1.0;
         *Abj_ -= 1.0;
         *Ajc_ += 1.0;
@@ -84,7 +84,7 @@ namespace rtspice::components {
       float *Aaj_, *Abj_, *Ajc_, *Ajd_;
   };
 
-}		// -----  end of namespace rtspice::components  ----- 
+}		// -----  end of namespace rtspice::components  -----
 
 
-#endif   // ----- #ifndef opamp_INC  ----- 
+#endif   // ----- #ifndef opamp_INC  -----

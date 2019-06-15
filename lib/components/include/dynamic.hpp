@@ -15,7 +15,6 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-
 #ifndef  dynamic_INC
 #define  dynamic_INC
 
@@ -26,10 +25,7 @@ namespace rtspice::components {
 
   /*!
    *  @brief  basic dynamic component template, optimized for
-   *  modified nodal analysis and trapezoidal integration.
-   *
-   *  detaileed
-   *
+   *  modified nodal analysis
    */
   template<class F>
   class dynamic : public component {
@@ -43,10 +39,10 @@ namespace rtspice::components {
         na_{ std::move(na) },
         nb_{ std::move(nb) },
         nj_{ "@J"+id_ },
-        f_(std::forward<Args>(args)...) {}
+        f_( std::forward<Args>(args)... ) {}
 
       virtual bool is_static()    const override { return false; }
-      virtual bool is_dynamic()   const override { return F::dynamic; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return false; }
 
       virtual void register_(circuit::circuit& c) override {
@@ -81,7 +77,7 @@ namespace rtspice::components {
 
       }
 
-      virtual void fill() override {
+      virtual void fill() const noexcept override {
 
         const auto vt0 = *a_t0_ - *b_t0_;
         const auto jt0 = *j_t0_;
@@ -98,27 +94,29 @@ namespace rtspice::components {
 
       }
 
-
     private:
       const std::string na_, nb_, nj_;
-      F f_;
+      const F f_;
       float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajj_;
       float *bj_;
 
       const float *a_t0_, *b_t0_, *j_t0_;
       const float *delta_t_;
-
   };
 
-  class linear_capacitor_dynamic {
+  /*!
+   * @brief dynamic behaviour associated with a linear capacitor using a 
+   * trapezoidal integration scheme.
+   */
+  class linear_capacitor_trapezoidal {
     public:
 
-      static constexpr bool dynamic = true;
+      static constexpr bool dynamic_v = true;
 
-      linear_capacitor_dynamic(float val) :
-        S_( 0.5 / val ) {}
+      linear_capacitor_trapezoidal(float C) :
+        S_( 0.5 / C ) {}
 
-      auto operator()(float v, float j, float delta_t) const {
+      inline auto operator()(float v, float j, float delta_t) const noexcept {
         const auto R = delta_t*S_;
         const auto V = v + R*j;
         return std::make_pair(R, V);
@@ -128,14 +126,18 @@ namespace rtspice::components {
       const float S_;
   };
 
-  class linear_inductor_dynamic {
+  /*!
+   * @brief dynamic behaviour associated with a linear inductor using a 
+   * trapezoidal integration scheme.
+   */
+  class linear_inductor_trapezoidal {
     public:
-      static constexpr bool dynamic = true;
+      static constexpr bool dynamic_v = true;
 
-      linear_inductor_dynamic(float val) :
-        L_( 2.0 * val ) {}
+      linear_inductor_trapezoidal(float L) :
+        L_( 2.0 * L ) {}
 
-      auto operator()(float v, float j, float delta_t) const {
+      inline auto operator()(float v, float j, float delta_t) const noexcept {
         const auto R = L_/delta_t;
         const auto V = v + R*j;
         return std::make_pair(R, -V); //source sign is reversed
@@ -144,10 +146,8 @@ namespace rtspice::components {
       const float L_;
   };
 
-  using linear_capacitor = dynamic<linear_capacitor_dynamic>;
-  using linear_inductor  = dynamic<linear_inductor_dynamic>;
-
-
+  using linear_capacitor = dynamic<linear_capacitor_trapezoidal>;
+  using linear_inductor  = dynamic<linear_inductor_trapezoidal>;
 
 }		// -----  end of namespace rtspice::components  -----
 

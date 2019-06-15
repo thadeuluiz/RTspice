@@ -78,8 +78,8 @@ SCENARIO("circuit initialization", "[circuit]") {
 
       c.step_();
 
-      REQUIRE(c.solution("1") == Approx(1.0f));
-      REQUIRE(c.solution("2") == Approx(0.5f));
+      CHECK(c.solution("1") == Approx(1.0f));
+      CHECK(c.solution("2") == Approx(0.5f));
 
       constexpr auto NITER = 44100;
 
@@ -92,8 +92,8 @@ SCENARIO("circuit initialization", "[circuit]") {
       const auto avgTime = nanoseconds{delta}.count()/NITER;
 
       INFO( "average iteration time: " << avgTime << " ns");
-      REQUIRE(c.solution("1") == Approx(1.0f));
-      REQUIRE(c.solution("2") == Approx(0.5f));
+      CHECK(c.solution("1") == Approx(1.0f));
+      CHECK(c.solution("2") == Approx(0.5f));
 
     }
 
@@ -124,7 +124,7 @@ SCENARIO("nonlinear simulation", "[circuit]") {
 
         INFO("DC Runtime =  " << RunTimeDC << " ns");
         INFO("V[diode] = " << *c.get_x("2") << " V");
-        REQUIRE( i > 0 );
+        CHECK( i > 0 );
       }
 
       {
@@ -195,7 +195,7 @@ SCENARIO("dynamic simulation", "[circuit]") {
 
       for(auto iter = 0; iter < niter; ++iter) {
         INFO("V[cap] = " << vs[iter] << " V");
-        REQUIRE(is[iter] > 0);
+        CHECK(is[iter] > 0);
       }
       INFO("Transient step Runtime =  " << RunTimeTran/niter << " ns");
       REQUIRE(true);
@@ -298,7 +298,7 @@ SCENARIO("nonlinear dynamic simulation", "[circuit]") {
 
 SCENARIO("basic circuit simulation", "[circuit]") {
 
-  constexpr auto dist = 0.0e3;
+  constexpr auto dist = 200.0e3;
   constexpr auto tone = 19.0e3;
 
   GIVEN("a distortion circuit") {
@@ -339,7 +339,7 @@ SCENARIO("basic circuit simulation", "[circuit]") {
     circuit c{components};
 
     constexpr float delta_t = 1.0 / 44100.0;
-    constexpr int   niter   = 1000;
+    constexpr int   niter   = 100000;
 
     THEN("basic simulation") {
 
@@ -362,7 +362,7 @@ SCENARIO("basic circuit simulation", "[circuit]") {
       const auto delta = high_resolution_clock::now() - start;
       const auto RunTimeTran = nanoseconds{delta}.count();
 
-      REQUIRE(std::all_of(is.cbegin(), is.cend(), [](auto i){ return i > 0; }));
+      CHECK(std::all_of(is.cbegin(), is.cend(), [](auto i){ return i > 0; }));
       INFO("Average transient step runtime =  " << RunTimeTran/niter << " ns");
       REQUIRE(true);
 

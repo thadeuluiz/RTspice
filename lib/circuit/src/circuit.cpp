@@ -279,14 +279,15 @@ namespace rtspice::circuit {
 
       bool good = true;
       for(auto _ = 0; good && _ < m; ++_)
-        good &= fabs(x[_] - x_prev[_]) < rtol*fabs(x_prev[_]) + atol;
+        good = std::abs(x[_] - x_prev[_]) <
+            std::fma(rtol, std::abs(x_prev[_]), atol);
 
       //all values converged
       if(good) return i;
     }
 
     //no convergence obtained
-    return -maxiter-1;
+    return 0;
 
   }
 
