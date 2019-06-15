@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <algorithm>
+#include <numeric>
 
 #include <cuda_runtime.h>
 
@@ -104,17 +105,17 @@ namespace rtspice::circuit {
     system_.row = cuda_malloc_<int>(m+1);
     system_.col = cuda_malloc_<int>(nnz);
 
-    system_.A_static  = cuda_malloc_<real_t>(nnz);
-    system_.A_dynamic = cuda_malloc_<real_t>(nnz);
-    system_.A         = cuda_malloc_<real_t>(nnz);
+    system_.A_static  = cuda_malloc_<float>(nnz);
+    system_.A_dynamic = cuda_malloc_<float>(nnz);
+    system_.A         = cuda_malloc_<float>(nnz);
 
-    system_.b_static  = cuda_malloc_<real_t>(m);
-    system_.b_dynamic = cuda_malloc_<real_t>(m);
-    system_.b         = cuda_malloc_<real_t>(m);
+    system_.b_static  = cuda_malloc_<float>(m);
+    system_.b_dynamic = cuda_malloc_<float>(m);
+    system_.b         = cuda_malloc_<float>(m);
 
-    system_.state  = cuda_malloc_<real_t>(m);
-    system_.x      = cuda_malloc_<real_t>(m);
-    system_.x_prev = cuda_malloc_<real_t>(m);
+    system_.state  = cuda_malloc_<float>(m);
+    system_.x      = cuda_malloc_<float>(m);
+    system_.x_prev = cuda_malloc_<float>(m);
 
     //matrix descriptor
     cusparseCreateMatDescr(&system_.desc_A);
@@ -208,32 +209,55 @@ namespace rtspice::circuit {
 
   }
 
-  int circuit::step_() {
+  int circuit::solve_() {
 
-    const auto nnz = system_.nnz;
-    const auto m   = system_.m;
-
-    //prefill buffers
-    copy_n(&system_.A_dynamic[0], nnz, &system_.A[0]);
-    copy_n(&system_.b_dynamic[0], nnz, &system_.b[0]);
-
-    //stamp the system
-    for(auto&& c: components_.nonlinear) c->fill();
+    auto& sys = system_;
 
     int singular = 0;
-    const auto status = cusolverSpDcsrlsvluHost(context_.solver_handle,
-        m, nnz, system_.desc_A,
-        &system_.A[0], &system_.row[0], &system_.col[0],
-        &system_.b[0],
-        1e-16,
+    const auto status = cusolverSpScsrlsvluHost(context_.solver_handle,
+        sys.m, sys.nnz, sys.desc_A,
+        sys.A.get(), sys.row.get(), sys.col.get(),
+        sys.b.get(),
+        1e-9,
         0, //no reordering, leaks memory
-        &system_.x[0],
+        sys.x.get(),
         &singular);
 
     assert(status == CUSOLVER_STATUS_SUCCESS);
     assert(singular == -1);
 
     return status == CUSOLVER_STATUS_SUCCESS && singular == -1;
+
+  }
+
+  int circuit::step_() {
+
+    const auto nnz = system_.nnz;
+    const auto m   = system_.m;
+
+    const auto A_dyn = system_.A_dynamic.get();
+    const auto b_dyn = system_.b_dynamic.get();
+
+    auto A = system_.A.get();
+    const auto row = system_.row.get();
+    const auto col = system_.col.get();
+
+    auto b = system_.b.get();
+    auto x = system_.x.get();
+
+    auto x_prev = system_.x_prev.get();
+
+    //prefill buffers
+    copy_n(A_dyn, nnz, A);
+    copy_n(b_dyn, m, b);
+
+    //stamp the system
+    for(auto&& c: components_.nonlinear) c->fill();
+
+    //hold previous solution
+    copy_n(x, m, x_prev);
+
+    return solve_();
 
   }
 
@@ -245,28 +269,17 @@ namespace rtspice::circuit {
     const auto atol    = params_.atol;
     const auto maxiter = params_.maxiter;
 
-    for(int i = 1; i <= maxiter; ++i) {
+    auto x = system_.x.get();
+    auto x_prev = system_.x_prev.get();
 
-      //hold previous solution
-      copy_n(&system_.x[0], m, &system_.x_prev[0]);
+    for(int i = 1; i <= maxiter; ++i) {
 
       //update solution
       if(!step_()) return -i;
 
-      //check for convergence
       bool good = true;
-      for(auto _ = 0; _ < m; ++_) {
-
-        const auto true_value = system_.x[_];
-        const auto computed   = system_.x_prev[_];
-
-        const auto e = std::abs(true_value - computed);
-
-        if(e > rtol*std::abs(true_value) + atol) {
-          good = false;
-          break;
-        }
-      }
+      for(auto _ = 0; good && _ < m; ++_)
+        good &= fabs(x[_] - x_prev[_]) < rtol*fabs(x_prev[_]) + atol;
 
       //all values converged
       if(good) return i;
@@ -277,7 +290,7 @@ namespace rtspice::circuit {
 
   }
 
-  int circuit::advance_(real_t delta_t) {
+  int circuit::advance_(float delta_t) {
     //advance time
     system_.delta_time = delta_t;
     system_.time      += delta_t;
@@ -287,14 +300,14 @@ namespace rtspice::circuit {
 
     //prefill with static data
     copy_n(&system_.A_static[0], nnz, &system_.A[0]);
-    copy_n(&system_.b_static[0], nnz, &system_.b[0]);
+    copy_n(&system_.b_static[0], m, &system_.b[0]);
 
     //load dynamic data
     for(auto&& c: components_.dynamic) c->fill();
 
     //store in dynamic buffers
     copy_n(&system_.A[0], nnz, &system_.A_dynamic[0]);
-    copy_n(&system_.b[0], nnz, &system_.b_dynamic[0]);
+    copy_n(&system_.b[0], m, &system_.b_dynamic[0]);
 
 
     //iterate until convergence
@@ -317,35 +330,35 @@ namespace rtspice::circuit {
       nodes_.pointers.emplace(e, nullptr);
   }
 
-  circuit::real_t* circuit::get_A(const pair<string, string>& ij) {
+  float* circuit::get_A(const pair<string, string>& ij) {
     if(ij.first == "0" || ij.second == "0")
       return &system_.ground_A;
     return nodes_.pointers.at(ij);
   }
 
-  circuit::real_t* circuit::get_b(const string& n) {
+  float* circuit::get_b(const string& n) {
     if(n == "0")
       return &system_.ground_A;
     return &system_.b[nodes_.names.at(n)];
   }
 
-  const circuit::real_t* circuit::get_x(const string& n) const {
+  const float* circuit::get_x(const string& n) const {
     if(n == "0")
       return &system_.ground_x;
     return &system_.x[nodes_.names.at(n)];
   }
 
-  const circuit::real_t* circuit::get_state(const string& n) const {
+  const float* circuit::get_state(const string& n) const {
     if(n == "0")
       return &system_.ground_x;
     return &system_.state[nodes_.names.at(n)];
   }
 
-  const circuit::real_t* circuit::get_time() const {
+  const float* circuit::get_time() const {
     return &system_.time;
   }
 
-  const circuit::real_t* circuit::get_delta_time() const {
+  const float* circuit::get_delta_time() const {
     return &system_.delta_time;
   }
 

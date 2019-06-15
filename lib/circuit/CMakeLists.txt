@@ -9,6 +9,8 @@ target_link_libraries(circuit
   components
   ${CUDA_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
-  ${CUDA_cusolver_LIBRARY})
+  ${CUDA_cusolver_LIBRARY}
+  OpenMP::OpenMP_CXX
+  )
 
 add_subdirectory(test/)
