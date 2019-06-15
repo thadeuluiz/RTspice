@@ -298,26 +298,47 @@ SCENARIO("nonlinear dynamic simulation", "[circuit]") {
 
 SCENARIO("basic circuit simulation", "[circuit]") {
 
-  GIVEN("a nonlinear dynamic circuit") {
+  constexpr auto dist = 0.0e3;
+  constexpr auto tone = 19.0e3;
+
+  GIVEN("a distortion circuit") {
 
     vector<component::ptr> components {
 
-      make_component<ac_voltage>      ("V1", "IN",    "0",     0.1f, 1e3f, 1.0f), //1.0 V, 440 Hz
-      make_component<linear_resistor> ("RA", "IN",    "PLUS",  4.7e+3f),
-      make_component<linear_resistor> ("R5", "PLUS",  "0",     1.0e+3f),
-      make_component<ideal_opamp>     ("U1", "OUT",   "0",     "PLUS", "MINUS"),
-      make_component<linear_capacitor>("C3", "MINUS", "1",     47.0e-9f),
-      make_component<linear_resistor> ("R4", "1",     "0",     4.7e+3f),
-      make_component<basic_diode>     ("D1", "OUT",   "MINUS", 4.352e-9f, 1.906f),
-      make_component<basic_diode>     ("D2", "MINUS", "OUT",   4.352e-9f, 1.906f),
-      make_component<linear_resistor> ("R6", "OUT",   "MINUS", 351.0e+3f),
-      make_component<linear_resistor> ("RL", "OUT",   "0",     1.0e+3f),
+      //clipping section
+      //input
+      make_component<ac_voltage>      ("V1", "0",    "3",      0.5, 440.0, 0.0), //100 mV, 440 Hz
 
+      //opamp
+      make_component<ideal_opamp>     ("U1A","1",     "0",     "2", "3"),
+
+      //feedback
+      make_component<linear_resistor> ("R4", "A",     "0",     4.7e3),
+      make_component<linear_capacitor>("C3", "2",     "A",     47.0e-9),
+
+      make_component<linear_capacitor>("C4", "1",     "2",     51.0e-12),
+      make_component<basic_diode>     ("D1", "1",     "2",     4.352e-9f, 1.906f),  //1n4148
+      make_component<basic_diode>     ("D2", "2",     "1",     4.352e-9f, 1.906f),  //1n4148
+      make_component<linear_resistor> ("R6", "2",     "1",     51.0e3 + dist),
+
+      //tone section
+      make_component<linear_resistor> ("R7", "1",     "5",     4.7e3),
+      make_component<linear_capacitor>("C5", "5",     "0",     0.22e-6),
+      make_component<linear_resistor> ("R9", "5",     "0",     10.0e3),
+
+      make_component<ideal_opamp>     ("U1B","7",     "0",     "5", "6"),
+
+      make_component<linear_resistor> ("R8", "0",     "B",     220.0),
+      make_component<linear_capacitor>("C6", "B",     "T",     0.22e-6),
+      make_component<linear_resistor> ("RTa","5",     "T",     20.0e3 - tone),
+      make_component<linear_resistor> ("RTb","T",     "6",     tone),
+
+      make_component<linear_resistor> ("R11","6",     "7",     1.0e3),
 
     };
     circuit c{components};
 
-    constexpr float delta_t = 1.0 / 44100.0f;
+    constexpr float delta_t = 1.0 / 44100.0;
     constexpr int   niter   = 1000;
 
     THEN("basic simulation") {
@@ -326,7 +347,9 @@ SCENARIO("basic circuit simulation", "[circuit]") {
       std::vector<int>   is(niter);
       std::vector<std::chrono::time_point<high_resolution_clock>> ts(niter);
 
-      const auto vptr = c.get_x("OUT");
+      const auto vptr = c.get_x("7");
+
+      //c.nr_step_(); //dc point
 
       const auto start = high_resolution_clock::now();
 

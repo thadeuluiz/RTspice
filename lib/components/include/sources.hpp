@@ -18,14 +18,13 @@
 #ifndef  source_INC
 #define  source_INC
 
+#include <atomic>
 #include <string>
 
 #include "component.hpp"
 #include "circuit.hpp"
 
 namespace rtspice::components {
-
-  using real_t = circuit::circuit::real_t;
 
   /*!
    * @brief generalized independent current source
@@ -73,8 +72,8 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_;
       F f_;
-      real_t *ba_, *bb_;
-      const real_t *t_;
+      float *ba_, *bb_;
+      const float *t_;
   };
 
   /*!
@@ -145,8 +144,8 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nj_;
       F f_;
-      real_t *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
-      const real_t* t_;
+      float *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
+      const float* t_;
   };
 
   /*!
@@ -163,7 +162,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  real_t val) :
+                  float val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -214,8 +213,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const real_t Av_;
-      real_t *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
+      const float Av_;
+      float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
   };
 
   /*!
@@ -232,7 +231,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  real_t val) :
+                  float val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -283,8 +282,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const real_t Ai_;
-      real_t *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
+      const float Ai_;
+      float *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
   };
 
   /*!
@@ -301,7 +300,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  real_t val) :
+                  float val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -343,8 +342,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_;
-      const real_t Gm_;
-      real_t *Aac_, *Aad_, *Abc_, *Abd_;
+      const float Gm_;
+      float *Aac_, *Aad_, *Abc_, *Abd_;
   };
 
   /*!
@@ -361,7 +360,7 @@ namespace rtspice::components {
                   std::string nb,
                   std::string nc,
                   std::string nd,
-                  real_t val) :
+                  float val) :
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
@@ -434,8 +433,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nx_, ny_;
-      const real_t Rm_;
-      real_t *Aay_, *Aby_, *Acx_, *Adx_,
+      const float Rm_;
+      float *Aay_, *Aby_, *Acx_, *Adx_,
             *Axc_, *Axd_, *Aya_, *Ayb_, *Ayx_;
   };
 
@@ -448,15 +447,15 @@ namespace rtspice::components {
       static constexpr bool static_  = true;
       static constexpr bool dynamic  = false;
 
-      dc_function(real_t val) :
+      dc_function(float val) :
         val_{ val } {}
 
-      real_t operator()(real_t) {
+      float operator()(float) {
         return val_;
       }
 
     private:
-      const real_t val_;
+      const float val_;
   };
 
   /*!
@@ -468,25 +467,48 @@ namespace rtspice::components {
       static constexpr bool static_  = false;
       static constexpr bool dynamic  = true;
 
-      sine_function(real_t A, real_t f, real_t phase = 0.0) :
+      sine_function(float A, float f, float phase = 0.0) :
         A_{ A },
         w_( 8.0*std::atan(1.0)*f ), //2 pi f
         phi_( std::atan(1.0)*phase/45.0 ) {} //phase*pi/180
 
-      real_t operator()(real_t t) const {
+      float operator()(float t) const {
         return A_*std::sin(w_*t + phi_);
       }
 
     private:
-      const real_t A_, w_, phi_;
+      const float A_, w_, phi_;
 
   };
+
+  /*!
+   * @brief source controlled externally, value is checked at every time frame
+   */
+  class external_function {
+    public:
+      static constexpr bool static_  = false;
+      static constexpr bool dynamic  = true;
+
+      external_function(const std::atomic<float>& val) :
+        val_{ val } {}
+
+      float operator()(float) {
+        return val_.load();
+      }
+
+    private:
+      const std::atomic<float>& val_;
+  };
+
+
 
   using dc_current = current_source<dc_function>;
   using dc_voltage = voltage_source<dc_function>;
 
   using ac_current = current_source<sine_function>;
   using ac_voltage = voltage_source<sine_function>;
+
+  using ext_voltage = voltage_source<external_function>;
 
 }		// -----  end of namespace rtspice::components  -----
 

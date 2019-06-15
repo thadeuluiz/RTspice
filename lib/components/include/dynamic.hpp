@@ -24,8 +24,6 @@
 
 namespace rtspice::components {
 
-  using real_t = circuit::circuit::real_t;
-
   /*!
    *  @brief  basic dynamic component template, optimized for
    *  modified nodal analysis and trapezoidal integration.
@@ -104,11 +102,11 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nj_;
       F f_;
-      real_t *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajj_;
-      real_t *bj_;
+      float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajj_;
+      float *bj_;
 
-      const real_t *a_t0_, *b_t0_, *j_t0_;
-      const real_t *delta_t_;
+      const float *a_t0_, *b_t0_, *j_t0_;
+      const float *delta_t_;
 
   };
 
@@ -117,33 +115,33 @@ namespace rtspice::components {
 
       static constexpr bool dynamic = true;
 
-      linear_capacitor_dynamic(real_t val) :
+      linear_capacitor_dynamic(float val) :
         S_( 0.5 / val ) {}
 
-      auto operator()(real_t v, real_t j, real_t delta_t) const {
+      auto operator()(float v, float j, float delta_t) const {
         const auto R = delta_t*S_;
         const auto V = v + R*j;
         return std::make_pair(R, V);
       }
 
     private:
-      const real_t S_;
+      const float S_;
   };
 
   class linear_inductor_dynamic {
     public:
       static constexpr bool dynamic = true;
 
-      linear_inductor_dynamic(real_t val) :
+      linear_inductor_dynamic(float val) :
         L_( 2.0 * val ) {}
 
-      auto operator()(real_t v, real_t j, real_t delta_t) const {
+      auto operator()(float v, float j, float delta_t) const {
         const auto R = L_/delta_t;
         const auto V = v + R*j;
         return std::make_pair(R, -V); //source sign is reversed
       }
     private:
-      const real_t L_;
+      const float L_;
   };
 
   using linear_capacitor = dynamic<linear_capacitor_dynamic>;

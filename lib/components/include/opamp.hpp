@@ -32,8 +32,6 @@ namespace rtspice::components {
    */
   class ideal_opamp : public component {
     public:
-      using real_t = circuit::circuit::real_t;
-
       ideal_opamp(std::string id,
                   std::string na,
                   std::string nb,
@@ -83,8 +81,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      real_t *Aaj_, *Abj_, *Ajc_, *Ajd_;
-
+      float *Aaj_, *Abj_, *Ajc_, *Ajd_;
   };
 
 }		// -----  end of namespace rtspice::components  ----- 
