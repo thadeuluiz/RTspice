@@ -17,6 +17,7 @@
 
 #include <string>
 #include <chrono>
+#include <numeric>
 
 #include <fstream>
 #include <iterator>
@@ -68,15 +69,12 @@ SCENARIO("circuit initialization", "[circuit]") {
       REQUIRE(nodes.find("1") != nodes.end());
       REQUIRE(nodes.find("2") != nodes.end());
       //REQUIRE(nodes.size()    == 3); //for V1 adds an extra node
-      REQUIRE(nodes.at("1")   == 0);
-      REQUIRE(nodes.at("2")   == 1);
-
     }
 
     THEN("stepping succeeds") {
       circuit c{components};
 
-      c.step_();
+      c.nr_step_();
 
       CHECK(c.solution("1") == Approx(1.0f));
       CHECK(c.solution("2") == Approx(0.5f));
@@ -86,7 +84,7 @@ SCENARIO("circuit initialization", "[circuit]") {
       const auto start = high_resolution_clock::now();
 
       for(auto i = 0; i < NITER; i++)
-        c.step_();
+        c.nr_step_();
 
       const auto delta = high_resolution_clock::now() - start;
       const auto avgTime = nanoseconds{delta}.count()/NITER;
@@ -130,7 +128,7 @@ SCENARIO("nonlinear simulation", "[circuit]") {
       {
         const auto start = high_resolution_clock::now();
 
-        for(auto i = 0; i < 100; i++) c.step_();
+        for(auto i = 0; i < 100; i++) c.nr_step_();
 
         const auto delta = high_resolution_clock::now() - start;
         const auto RunTimeBasicStep = nanoseconds{delta}.count();
@@ -307,45 +305,45 @@ SCENARIO("basic circuit simulation", "[circuit]") {
 
       //clipping section
       //input
-      make_component<ac_voltage>      ("V1", "0",    "3",      0.5, 440.0, 0.0), //100 mV, 440 Hz
+      make_component<ac_voltage>      ("V1",  "0", "3", 0.1, 10e3, 0.0), //100 mV, 440 Hz
 
       //opamp
-      make_component<ideal_opamp>     ("U1A","1",     "0",     "2", "3"),
+      make_component<ideal_opamp>     ("U1A", "1", "0", "2", "3"),
 
       //feedback
-      make_component<linear_resistor> ("R4", "A",     "0",     4.7e3),
-      make_component<linear_capacitor>("C3", "2",     "A",     47.0e-9),
+      make_component<linear_resistor> ("R4",  "A", "0", 4.7e3),
+      make_component<linear_capacitor>("C3",  "2", "A", 47.0e-9),
 
-      make_component<linear_capacitor>("C4", "1",     "2",     51.0e-12),
-      make_component<basic_diode>     ("D1", "1",     "2",     4.352e-9f, 1.906f),  //1n4148
-      make_component<basic_diode>     ("D2", "2",     "1",     4.352e-9f, 1.906f),  //1n4148
-      make_component<linear_resistor> ("R6", "2",     "1",     51.0e3 + dist),
+      make_component<linear_capacitor>("C4",  "1", "2", 51.0e-12),
+      make_component<basic_diode>     ("D1",  "1", "2", 4.352e-9f, 1.906f),  //1n4148
+      make_component<basic_diode>     ("D2",  "2", "1", 4.352e-9f, 1.906f),  //1n4148
+      make_component<linear_resistor> ("R6",  "2", "1", 51.0e3 + dist),
 
       //tone section
-      make_component<linear_resistor> ("R7", "1",     "5",     4.7e3),
-      make_component<linear_capacitor>("C5", "5",     "0",     0.22e-6),
-      make_component<linear_resistor> ("R9", "5",     "0",     10.0e3),
+      make_component<linear_resistor> ("R7",  "1", "5", 4.7e3),
+      make_component<linear_capacitor>("C5",  "5", "0", 0.22e-6),
+      make_component<linear_resistor> ("R9",  "5", "0", 10.0e3),
 
-      make_component<ideal_opamp>     ("U1B","7",     "0",     "5", "6"),
+      make_component<ideal_opamp>     ("U1B", "7", "0", "5", "6"),
 
-      make_component<linear_resistor> ("R8", "0",     "B",     220.0),
-      make_component<linear_capacitor>("C6", "B",     "T",     0.22e-6),
-      make_component<linear_resistor> ("RTa","5",     "T",     20.0e3 - tone),
-      make_component<linear_resistor> ("RTb","T",     "6",     tone),
+      make_component<linear_resistor> ("R8",  "0", "B", 220.0),
+      make_component<linear_capacitor>("C6",  "B", "T", 0.22e-6),
+      make_component<linear_resistor> ("RTa", "5", "T", 20.0e3 - tone),
+      make_component<linear_resistor> ("RTb", "T", "6", tone),
 
-      make_component<linear_resistor> ("R11","6",     "7",     1.0e3),
+      make_component<linear_resistor> ("R11", "6", "7", 1.0e3),
 
     };
     circuit c{components};
 
     constexpr float delta_t = 1.0 / 44100.0;
-    constexpr int   niter   = 100000;
+    constexpr int   niter   = 4410000;
 
     THEN("basic simulation") {
 
-      std::vector<float> vs(niter);
+      //std::vector<float> vs(niter);
       std::vector<int>   is(niter);
-      std::vector<std::chrono::time_point<high_resolution_clock>> ts(niter);
+      //std::vector<std::chrono::time_point<high_resolution_clock>> ts(niter);
 
       const auto vptr = c.get_x("7");
 
@@ -355,27 +353,29 @@ SCENARIO("basic circuit simulation", "[circuit]") {
 
       for(auto iter = 0; iter < niter; ++iter) {
         is[iter] = c.advance_(delta_t);
-        vs[iter] = *vptr;
-        ts[iter] = high_resolution_clock::now();
+        //vs[iter] = *vptr;
+        //ts[iter] = high_resolution_clock::now();
       }
 
       const auto delta = high_resolution_clock::now() - start;
       const auto RunTimeTran = nanoseconds{delta}.count();
-
       CHECK(std::all_of(is.cbegin(), is.cend(), [](auto i){ return i > 0; }));
-      INFO("Average transient step runtime =  " << RunTimeTran/niter << " ns");
+
+      const auto inner_it = std::accumulate(is.cbegin(), is.cend(), 0);
+
+      INFO("Average solve runtime =  " << RunTimeTran/inner_it << " ns");
       REQUIRE(true);
 
-      std::ofstream v_file("sim_vout.txt");
-      std::copy(vs.cbegin(), vs.cend(), std::ostream_iterator<float>(v_file, "\n"));
+      //std::ofstream v_file("sim_vout.txt");
+      //std::copy(vs.cbegin(), vs.cend(), std::ostream_iterator<float>(v_file, "\n"));
 
-      std::ofstream i_file("sim_steps.txt");
-      std::copy(is.cbegin(), is.cend(), std::ostream_iterator<int>(i_file, "\n"));
+      //std::ofstream i_file("sim_steps.txt");
+      //std::copy(is.cbegin(), is.cend(), std::ostream_iterator<int>(i_file, "\n"));
 
-      std::ofstream t_file("sim_times.txt");
-      auto it = std::ostream_iterator<int>(t_file, "\n");
-      for(auto i = 1; i < niter; ++i)
-        *it++ = nanoseconds{ts[i] - ts[i-1]}.count();
+      //std::ofstream t_file("sim_times.txt");
+      //auto it = std::ostream_iterator<int>(t_file, "\n");
+      //for(auto i = 1; i < niter; ++i)
+      //  *it++ = nanoseconds{ts[i] - ts[i-1]}.count();
     }
 
   }

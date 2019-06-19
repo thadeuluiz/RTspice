@@ -27,10 +27,28 @@
 
 #include <cusparse.h>
 #include <cusolverSp.h>
+#include <cusolverRf.h>
 
 #include "component.hpp"
 
 namespace rtspice::circuit {
+
+  template<class T>
+  class entry_reference {
+    public:
+
+      entry_reference(T* const* base = nullptr, std::ptrdiff_t offset = 0) :
+        indirect_{base},
+        offset_{offset} {}
+
+      inline auto& operator*() const noexcept {
+        return (*indirect_)[offset_];
+      }
+
+    private:
+      T* const* indirect_;
+      std::ptrdiff_t offset_;
+  };
 
   class circuit {
     private:
@@ -63,17 +81,18 @@ namespace rtspice::circuit {
       struct {
         float rtol    = 1e-3;
         float atol    = 1e-5;
-        int   maxiter = 30;
+        int   maxiter = 200;
       } params_;
 
       struct {
         cusparseHandle_t   sparse_handle;
+        cusolverRfHandle_t refactor_handle;
         cusolverSpHandle_t solver_handle;
       } context_;
 
       struct {
-        std::map<std::string, std::size_t> names;
-        std::map<std::pair<std::string,std::string>, float*> pointers;
+        std::map<std::string, std::ptrdiff_t> names;
+        std::map<std::pair<std::string,std::string>, std::ptrdiff_t> pointers;
       } nodes_;
 
       struct {
@@ -81,16 +100,20 @@ namespace rtspice::circuit {
         std::size_t         m, nnz;       //problem size
 
         cuda_ptr_<int>      row, col;
-        cuda_ptr_<float>    A, A_static, A_dynamic;
+        cuda_ptr_<float>    A_nonlinear, A_static, A_dynamic; //the buffers
+        float*              A; //the output reference
 
         cusparseMatDescr_t  desc_A;
 
-        cuda_ptr_<float>    b, b_static, b_dynamic;
-        cuda_ptr_<float>    x, state;
-        cuda_ptr_<float>    x_prev;
+        cuda_ptr_<float>    b_nonlinear, b_static, b_dynamic;
+        float               *b;
+        cuda_ptr_<float>    states[3];
 
-        float               ground_A;
-        const float         ground_x = 0;
+        float               *x, *xn, *x_state;
+
+        float               dummy, zero = 0;
+        float               *ground_A = &dummy;
+        const float         *ground_x = &zero;
 
         float time = 0.0, delta_time;
 
@@ -108,6 +131,7 @@ namespace rtspice::circuit {
       void teardown_system_();
 
       void init_components_();
+
       void setup_static_();
 
       int solve_();
@@ -118,7 +142,6 @@ namespace rtspice::circuit {
       circuit(std::vector<components::component::ptr> components);
       ~circuit();
 
-      int step_();       //basic step
       int nr_step_();    //iterate basic step until convergence
       int advance_(float delta_t);  //nr_step_ then advance time
 
@@ -129,16 +152,16 @@ namespace rtspice::circuit {
       void register_entry(const std::pair<std::string,std::string>& entry);
 
       //recover address of matrix entry
-      float* get_A(const std::pair<std::string,std::string>& entry);
+      entry_reference<float> get_A(const std::pair<std::string,std::string>& entry);
 
       //recover address of matrix entry
-      float* get_b(const std::string& node_name);
+      entry_reference<float> get_b(const std::string& node_name);
 
       //recover address of previous state entry
-      const float* get_x(const std::string& node_name) const;
+      entry_reference<const float> get_x(const std::string& node_name) const;
 
       //recover address of current solution entry
-      const float* get_state(const std::string& node_name) const;
+      entry_reference<const float> get_state(const std::string& node_name) const;
 
       const float* get_time() const;
       const float* get_delta_time() const;
