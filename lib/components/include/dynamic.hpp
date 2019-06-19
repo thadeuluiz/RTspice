@@ -97,10 +97,10 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nj_;
       const F f_;
-      float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajj_;
-      float *bj_;
+      circuit::entry_reference<float> Aaj_, Abj_, Aja_, Ajb_, Ajj_;
+      circuit::entry_reference<float> bj_;
 
-      const float *a_t0_, *b_t0_, *j_t0_;
+      circuit::entry_reference<const float> a_t0_, b_t0_, j_t0_;
       const float *delta_t_;
   };
 

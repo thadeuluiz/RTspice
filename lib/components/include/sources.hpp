@@ -72,7 +72,7 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_;
       const F f_;
-      float *ba_, *bb_;
+      circuit::entry_reference<float> ba_, bb_;
       const float *t_;
   };
 
@@ -144,7 +144,7 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nj_;
       const F f_;
-      float *Aaj_, *Abj_, *Aja_, *Ajb_, *bj_;
+      circuit::entry_reference<float> Aaj_, Abj_, Aja_, Ajb_, bj_;
       const float* t_;
   };
 
@@ -235,9 +235,9 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
       const F f_;
-      float *Aaj_, *Abj_, *Aja_, *Ajb_, *Ajc_, *Ajd_;
-      float *bj_;
-      const float  *xc_, *xd_;
+      circuit::entry_reference<float> Aaj_, Abj_, Aja_, Ajb_, Ajc_, Ajd_;
+      circuit::entry_reference<float> bj_;
+      circuit::entry_reference<const float> xc_, xd_;
   };
 
   /*!
@@ -328,9 +328,9 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
       const F f_;
-      float *Aaj_, *Abj_, *Acj_, *Adj_, *Ajc_, *Ajd_;
-      float *ba_, *bb_;
-      const float *xj_;
+      circuit::entry_reference<float> Aaj_, Abj_, Acj_, Adj_, Ajc_, Ajd_;
+      circuit::entry_reference<float> ba_, bb_;
+      circuit::entry_reference<const float> xj_;
   };
 
   /*!
@@ -414,9 +414,9 @@ namespace rtspice::components {
       const std::string na_, nb_, nc_, nd_;
       const F f_;
 
-      float *Aac_, *Aad_, *Abc_, *Abd_;
-      float *ba_, *bb_;
-      const float *xc_, *xd_;
+      circuit::entry_reference<float> Aac_, Aad_, Abc_, Abd_;
+      circuit::entry_reference<float> ba_, bb_;
+      circuit::entry_reference<const float> xc_, xd_;
   };
 
   /*!
@@ -524,11 +524,11 @@ namespace rtspice::components {
     private:
       const std::string na_, nb_, nc_, nd_, nx_, ny_;
       const F f_;
-      float *Aay_, *Aby_, *Acx_, *Adx_,
-            *Axc_, *Axd_, *Aya_, *Ayb_, *Ayx_;
+      circuit::entry_reference<float> Aay_, Aby_, Acx_, Adx_,
+                                      Axc_, Axd_, Aya_, Ayb_, Ayx_;
 
-      float *by_;
-      const float *xx_;
+      circuit::entry_reference<float> by_;
+      circuit::entry_reference<const float> xx_;
   };
 
   /*!

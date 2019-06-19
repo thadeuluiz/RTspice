@@ -81,7 +81,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      float *Aaj_, *Abj_, *Ajc_, *Ajd_;
+      circuit::entry_reference<float> Aaj_, Abj_, Ajc_, Ajd_;
   };
 
 }		// -----  end of namespace rtspice::components  -----

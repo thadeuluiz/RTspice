@@ -101,9 +101,9 @@ namespace rtspice::components {
       const F f_;
 
       //system references
-      float *Aaa_, *Aab_, *Aba_, *Abb_;
-      float *ba_, *bb_;
-      const float *xa_, *xb_;
+      circuit::entry_reference<float> Aaa_, Aab_, Aba_, Abb_;
+      circuit::entry_reference<float> ba_, bb_;
+      circuit::entry_reference<const float> xa_, xb_;
   };
 
   /*!
@@ -145,8 +145,9 @@ namespace rtspice::components {
       inline auto operator()(float v) const noexcept -> std::pair<float,float> {
 
         if(v < v_knee) {
-          const auto f  = IS_*std::expm1(v/N_Vt_);
-          const auto df = IS_*std::exp(v/N_Vt_)/N_Vt_;
+          const auto vnt = v/N_Vt_;
+          const auto f  = IS_*std::expm1(vnt);
+         const auto df = IS_*std::exp(vnt)/N_Vt_;
           return {f, df};
         } else {
           const auto f = e_sat_ + df_sat_*(v-v_knee);

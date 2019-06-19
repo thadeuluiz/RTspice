@@ -16,21 +16,17 @@
  */
 
 #include <cassert>
+#include <cstdint>
 #include <algorithm>
+#include <execution>
 #include <numeric>
 
 #include <cuda_runtime.h>
-
 #include "circuit.hpp"
 
-using std::vector;
-using std::string;
-using std::move;
-using std::pair;
+using namespace std;
 
-using std::fill_n;
-using std::copy_n;
-using std::copy_if;
+constexpr auto parallel_tag = execution::unsequenced_policy{};
 
 namespace rtspice::circuit {
 
@@ -49,9 +45,6 @@ namespace rtspice::circuit {
 
       setup_static_();               //feed static stamps
 
-
-      printf("created circuit with %zu nodes\n", nodes_.names.size());
-      printf("nnz A = %zu\n", system_.nnz);
 
   }
 
@@ -98,29 +91,37 @@ namespace rtspice::circuit {
     const auto m   = nodes_.names.size();
     const auto nnz = nodes_.pointers.size();
 
-    system_.m   = m;
-    system_.nnz = nnz;
+    auto& sys = system_;
+
+    sys.m   = m;
+    sys.nnz = nnz;
 
     //allocate index and value buffers
-    system_.row = cuda_malloc_<int>(m+1);
-    system_.col = cuda_malloc_<int>(nnz);
+    sys.row = cuda_malloc_<int>(m+1);
+    sys.col = cuda_malloc_<int>(nnz);
 
-    system_.A_static  = cuda_malloc_<float>(nnz);
-    system_.A_dynamic = cuda_malloc_<float>(nnz);
-    system_.A         = cuda_malloc_<float>(nnz);
+    sys.A_static    = cuda_malloc_<float>(nnz);
+    sys.A_dynamic   = cuda_malloc_<float>(nnz);
+    sys.A_nonlinear = cuda_malloc_<float>(nnz);
 
-    system_.b_static  = cuda_malloc_<float>(m);
-    system_.b_dynamic = cuda_malloc_<float>(m);
-    system_.b         = cuda_malloc_<float>(m);
+    sys.b_static    = cuda_malloc_<float>(m);
+    sys.b_dynamic   = cuda_malloc_<float>(m);
+    sys.b_nonlinear = cuda_malloc_<float>(m);
 
-    system_.state  = cuda_malloc_<float>(m);
-    system_.x      = cuda_malloc_<float>(m);
-    system_.x_prev = cuda_malloc_<float>(m);
+    sys.states[0] = cuda_malloc_<float>(m);
+    sys.states[1] = cuda_malloc_<float>(m);
+    sys.states[2] = cuda_malloc_<float>(m);
 
+    sys.A = sys.A_static.get();
+    sys.b = sys.b_static.get();
+
+    sys.x       = sys.states[0].get();
+    sys.xn      = sys.states[1].get();
+    sys.x_state = sys.states[2].get();
     //matrix descriptor
-    cusparseCreateMatDescr(&system_.desc_A);
-    cusparseSetMatType(system_.desc_A,      CUSPARSE_MATRIX_TYPE_GENERAL);
-    cusparseSetMatIndexBase(system_.desc_A, CUSPARSE_INDEX_BASE_ZERO);
+    cusparseCreateMatDescr(&sys.desc_A);
+    cusparseSetMatType(sys.desc_A,      CUSPARSE_MATRIX_TYPE_GENERAL);
+    cusparseSetMatIndexBase(sys.desc_A, CUSPARSE_INDEX_BASE_ZERO);
 
   }
 
@@ -130,48 +131,87 @@ namespace rtspice::circuit {
 
   void circuit::setup_nodes_() {
 
-    //fill node_name -> index map
-    //nodes are sorted lexicographically
-    std::for_each(
-        nodes_.names.begin(),
-        nodes_.names.end(),
-        [i = 0](auto&& p) mutable { p.second = i++; });
+    auto& sys = system_;
 
-    const auto m   = system_.m;
-    const auto nnz = system_.nnz;
+    const auto m   = sys.m;
+    const auto nnz = sys.nnz;
+
+    auto& names = nodes_.names;
+
+    //fill node_name -> index map
+    for_each(begin(names), end(names),
+                  [i = 0](auto&& p) mutable { p.second = i++; });
 
     auto row_begin = nodes_.pointers.begin();
+    //prepare initial sparsity figure
+    for(const auto& [row_name, row] : names) {
 
-    for(auto& kv : nodes_.names) {
-
-      //node name of current row
-      const auto& row_name = kv.first;
-      const auto  row      = kv.second;
-
-      auto row_end = std::upper_bound(
+      auto row_end = upper_bound(
           row_begin,
           nodes_.pointers.end(),
           row_name,
           [](auto&& rname, auto&& kv){ return rname < kv.first.first; });
 
-      //current row entries are in [row_begin, row_end)
-      auto offset = system_.row[row]; //offset onto col/value buffers
+      //current row entries are in [row_begin, row_end) the list
+
+      auto offset = sys.row[row]; //offset onto col/value buffers
       auto entry_no  = 0;
 
       for(; row_begin != row_end; ++row_begin, ++entry_no) {
         const auto& col_name = row_begin->first.second;
         const auto  col_idx  = nodes_.names.at(col_name);
-
-        system_.col[offset + entry_no] = col_idx;
-        row_begin->second = &system_.A[offset + entry_no];
+        sys.col[offset + entry_no] = col_idx;
+        row_begin->second = offset + entry_no;
       }
 
       //advance row
-      system_.row[row+1] = system_.row[row] + entry_no;
+      sys.row[row+1] = sys.row[row] + entry_no;
     }
-
-    assert(system_.row[m] == nnz && "row filling failure");
+    assert(sys.row[m] == nnz && "row filling failure");
     assert(row_begin == nodes_.pointers.end() && "not all coordinates used");
+
+    //get optimal pattern
+    const auto perm = std::make_unique<int[]>(m);
+    auto status = cusolverSpXcsrsymmdqHost(context_.solver_handle, m, nnz,
+        sys.desc_A, sys.row.get(), sys.col.get(), perm.get());
+    assert(status == CUSOLVER_STATUS_SUCCESS);
+
+    //allocate permutation worksize
+    size_t bsize;
+    status = cusolverSpXcsrperm_bufferSizeHost(context_.solver_handle, m, m, nnz,
+       sys.desc_A, sys.row.get(), sys.col.get(), perm.get(), perm.get(), &bsize);
+    assert(status == CUSOLVER_STATUS_SUCCESS);
+
+    const auto work = std::make_unique<uint8_t[]>(bsize);
+    const auto map  = std::make_unique<int[]>(nnz);
+    iota(map.get(), map.get()+nnz, 0);
+
+    //perform Q * A * Q^T
+    status = cusolverSpXcsrpermHost(context_.solver_handle, m, m, nnz,
+       sys.desc_A, sys.row.get(), sys.col.get(),
+       perm.get(), perm.get(), map.get(),
+       work.get());
+    assert(status == CUSOLVER_STATUS_SUCCESS);
+
+    //update node name map
+    for(auto&& [_, idx]: nodes_.names)
+      idx = find(perm.get(), perm.get()+m, idx) - perm.get();
+
+    for(auto&& kv: nodes_.pointers){
+
+      const auto& [na, nb] = kv.first;
+      const auto a = nodes_.names.at(na), b = nodes_.names.at(nb);
+
+      const auto row = sys.row.get(),
+                 col = sys.col.get();
+
+      const auto ofs = find(&col[row[a]], &col[row[a+1]], b) - col;
+
+      assert(ofs != row[a+1]);
+      assert(map[ofs] == kv.second);
+
+      kv.second = ofs;
+    }
 
   }
 
@@ -195,92 +235,98 @@ namespace rtspice::circuit {
 
   void circuit::setup_static_() {
 
-    fill_n(&system_.A[0], system_.nnz, 0.0);
-    fill_n(&system_.b[0], system_.m, 0.0);
-    fill_n(&system_.x[0], system_.m, 0.0);
+    auto& sys = system_;
+    const auto m = sys.m, nnz = sys.nnz;
+
+    sys.A = sys.A_static.get();
+    sys.b = sys.b_static.get();
+
+    fill_n(sys.A, nnz, 0.0);
+    fill_n(sys.b, m,   0.0);
+
+    fill_n(sys.x,       m,   0.0);
+    fill_n(sys.xn,      m,   0.0);
+    fill_n(sys.x_state, m,   0.0);
 
     for(auto&& c: components_.static_) c->fill();
 
-    copy_n(&system_.A[0], system_.nnz, &system_.A_static[0]);
-    copy_n(&system_.A[0], system_.nnz, &system_.A_dynamic[0]); //for testing purposes
+    copy_n(sys.A, nnz, sys.A_dynamic.get());
+    copy_n(sys.A, nnz, sys.A_nonlinear.get());
 
-    copy_n(&system_.b[0], system_.m,   &system_.b_static[0]);
-    copy_n(&system_.b[0], system_.m,   &system_.b_dynamic[0]);
+    copy_n(sys.b, nnz, sys.b_dynamic.get());
+    copy_n(sys.b, nnz, sys.b_nonlinear.get());
 
   }
 
-  int circuit::solve_() {
-
+  int circuit::advance_(float delta_t) {
     auto& sys = system_;
 
-    int singular = 0;
-    const auto status = cusolverSpScsrlsvluHost(context_.solver_handle,
-        sys.m, sys.nnz, sys.desc_A,
-        sys.A.get(), sys.row.get(), sys.col.get(),
-        sys.b.get(),
-        1e-9,
-        0, //no reordering, leaks memory
-        sys.x.get(),
-        &singular);
+    //advance time
+    sys.delta_time = delta_t;
+    sys.time      += delta_t;
 
-    assert(status == CUSOLVER_STATUS_SUCCESS);
-    assert(singular == -1);
+    const auto m = sys.m, nnz = sys.nnz;
 
-    return status == CUSOLVER_STATUS_SUCCESS && singular == -1;
+    //prefill with static data
 
-  }
+    //set the receiving pointers
+    sys.A = sys.A_dynamic.get();
+    sys.b = sys.b_dynamic.get();
 
-  int circuit::step_() {
+    copy_n(parallel_tag, sys.A_static.get(), nnz, sys.A);
+    copy_n(parallel_tag, sys.b_static.get(), m,   sys.b);
 
-    const auto nnz = system_.nnz;
-    const auto m   = system_.m;
+    //load dynamic data
+    for(auto&& c: components_.dynamic) c->fill();
 
-    const auto A_dyn = system_.A_dynamic.get();
-    const auto b_dyn = system_.b_dynamic.get();
+    //iterate until convergence
+    const auto i = nr_step_();
+    if(i < 0) return i;
 
-    auto A = system_.A.get();
-    const auto row = system_.row.get();
-    const auto col = system_.col.get();
+    //store new t1
+    copy_n(parallel_tag, sys.x, m, sys.x_state);
 
-    auto b = system_.b.get();
-    auto x = system_.x.get();
-
-    auto x_prev = system_.x_prev.get();
-
-    //prefill buffers
-    copy_n(A_dyn, nnz, A);
-    copy_n(b_dyn, m, b);
-
-    //stamp the system
-    for(auto&& c: components_.nonlinear) c->fill();
-
-    //hold previous solution
-    copy_n(x, m, x_prev);
-
-    return solve_();
-
+    return i;
   }
 
   int circuit::nr_step_() {
 
-    const auto m   = system_.m;
+    auto& sys = system_;
+    const auto m = sys.m, nnz = sys.nnz;
 
     const auto rtol    = params_.rtol;
     const auto atol    = params_.atol;
     const auto maxiter = params_.maxiter;
 
-    auto x = system_.x.get();
-    auto x_prev = system_.x_prev.get();
+    //set the receiving pointers
+    sys.A = sys.A_nonlinear.get();
+    sys.b = sys.b_nonlinear.get();
+
+    const auto close = [rtol, atol](float a, float b) {
+      return abs(a-b) <= fma(rtol, abs(b), atol);
+    };
 
     for(int i = 1; i <= maxiter; ++i) {
 
-      //update solution
-      if(!step_()) return -i;
+      //get pre-fill
+      copy_n(parallel_tag, sys.A_dynamic.get(), nnz, sys.A);
+      copy_n(parallel_tag, sys.b_dynamic.get(), m,   sys.b);
 
-      bool good = true;
-      for(auto _ = 0; good && _ < m; ++_)
-        good = std::abs(x[_] - x_prev[_]) <
-            std::fma(rtol, std::abs(x_prev[_]), atol);
+      //nonlinear fill
+      for(auto&& c: components_.nonlinear) c->fill();
+
+      //store old estimate in xn
+      swap(sys.x, sys.xn);
+
+      //update solution
+      if(!solve_()) return -i;
+
+      auto good = std::transform_reduce(parallel_tag,
+                                        sys.x, sys.x + nnz,
+                                        sys.xn,
+                                        true,
+                                        logical_and<bool>{},
+                                        close);
 
       //all values converged
       if(good) return i;
@@ -291,34 +337,24 @@ namespace rtspice::circuit {
 
   }
 
-  int circuit::advance_(float delta_t) {
-    //advance time
-    system_.delta_time = delta_t;
-    system_.time      += delta_t;
+  int circuit::solve_() {
+    auto& sys = system_;
 
-    const auto m = system_.m;
-    const auto nnz = system_.nnz;
+    int singular = 0;
+    const auto status = cusolverSpScsrlsvluHost(context_.solver_handle,
+        sys.m, sys.nnz, sys.desc_A,
+        sys.A, sys.row.get(), sys.col.get(),
+        sys.b,
+        1e-16,
+        0, //no reordering, leaks memory
+        sys.x,
+        &singular);
 
-    //prefill with static data
-    copy_n(&system_.A_static[0], nnz, &system_.A[0]);
-    copy_n(&system_.b_static[0], m, &system_.b[0]);
+    assert(status == CUSOLVER_STATUS_SUCCESS);
+    assert(singular == -1);
 
-    //load dynamic data
-    for(auto&& c: components_.dynamic) c->fill();
+    return status == CUSOLVER_STATUS_SUCCESS && singular == -1;
 
-    //store in dynamic buffers
-    copy_n(&system_.A[0], nnz, &system_.A_dynamic[0]);
-    copy_n(&system_.b[0], m, &system_.b_dynamic[0]);
-
-
-    //iterate until convergence
-    const auto i = nr_step_();
-    if(i < 0) return i;
-
-    //store new t0
-    copy_n(&system_.x[0], m, &system_.state[0]);
-
-    return i;
   }
 
   void circuit::register_node(const string& n) {
@@ -328,31 +364,32 @@ namespace rtspice::circuit {
 
   void circuit::register_entry(const pair<string, string>& e) {
     if(e.first != "0" && e.second != "0") //skip ground node entries
-      nodes_.pointers.emplace(e, nullptr);
+      nodes_.pointers.emplace(e, 0);
   }
 
-  float* circuit::get_A(const pair<string, string>& ij) {
-    if(ij.first == "0" || ij.second == "0")
-      return &system_.ground_A;
-    return nodes_.pointers.at(ij);
+  entry_reference<float> circuit::get_A(const pair<string, string>& ij) {
+    if(ij.first == "0" || ij.second == "0"){
+      return {&system_.ground_A, 0};
+    }
+    return {&system_.A, nodes_.pointers.at(ij)};
   }
 
-  float* circuit::get_b(const string& n) {
+  entry_reference<float> circuit::get_b(const string& n) {
     if(n == "0")
-      return &system_.ground_A;
-    return &system_.b[nodes_.names.at(n)];
+      return {&system_.ground_A, 0};
+    return {&system_.b, nodes_.names.at(n)};
   }
 
-  const float* circuit::get_x(const string& n) const {
+  entry_reference<const float> circuit::get_x(const string& n) const {
     if(n == "0")
-      return &system_.ground_x;
-    return &system_.x[nodes_.names.at(n)];
+      return {&system_.ground_x, 0};
+    return {&system_.x, nodes_.names.at(n)};
   }
 
-  const float* circuit::get_state(const string& n) const {
+  entry_reference<const float> circuit::get_state(const string& n) const {
     if(n == "0")
-      return &system_.ground_x;
-    return &system_.state[nodes_.names.at(n)];
+      return {&system_.ground_x, 0};
+    return {&system_.x_state, nodes_.names.at(n)};
   }
 
   const float* circuit::get_time() const {

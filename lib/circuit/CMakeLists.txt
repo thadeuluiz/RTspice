@@ -10,6 +10,7 @@ target_link_libraries(circuit
   ${CUDA_LIBRARIES}
   ${CUDA_cusparse_LIBRARY}
   ${CUDA_cusolver_LIBRARY}
+  ${TBB_LIBRARIES}
   OpenMP::OpenMP_CXX
   )
 
