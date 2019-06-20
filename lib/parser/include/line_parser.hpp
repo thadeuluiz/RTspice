@@ -31,8 +31,7 @@ namespace rtspice::parser {
   /*!
    *  @brief qi grammar for spice netlist statements
    *
-   *  netlist statement grammar, outputs statements as strings onto any stl
-   *  container
+   *  netlist statement grammar, outputs statements as strings to an std::vector
    *
    * @tparam Iterator the sequence iterator type
    * @tparam Container an stl (or compatible) container template
@@ -52,8 +51,7 @@ namespace rtspice::parser {
       start_      %= *(comment_ | line_);
       comment_    = '*' >> *(char_ - eol) >> eol;
       basic_line_ %= *(char_ - eol) >> eol;
-      line_       =  (basic_line_[_val += _1] >> *comment_)
-											% ('+' >> eps[_val += " "]);
+      line_       =  (basic_line_[_val += _1] >> *comment_) % ('+' >> eps[_val += " "]);
 
     }
 
@@ -61,7 +59,7 @@ namespace rtspice::parser {
       qi::rule<Iterator, Skipper, std::vector<std::string>()> start_;
       qi::rule<Iterator, qi::unused_type()>          comment_;
       qi::rule<Iterator, std::string()>              basic_line_;
-      qi::rule<Iterator, Skipper, std::string()>              line_;
+      qi::rule<Iterator, Skipper, std::string()>     line_;
 
   };
 

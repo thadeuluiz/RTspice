@@ -18,11 +18,15 @@
 #ifndef  source_INC
 #define  source_INC
 
+#include <unordered_map>
 #include <atomic>
+
 #include <string>
 
 #include "component.hpp"
 #include "circuit.hpp"
+
+extern std::unordered_map<std::string, std::atomic<float>> gExtParams;
 
 namespace rtspice::components {
 
@@ -571,7 +575,6 @@ namespace rtspice::components {
 
     private:
       const float A_, w_, phi_;
-
   };
 
   /*!
@@ -582,8 +585,8 @@ namespace rtspice::components {
       static constexpr bool static_v   = false;
       static constexpr bool dynamic_v  = true;
 
-      external_function(const std::atomic<float>& val) :
-        val_{ val } {}
+      external_function(const std::string& param) :
+        val_{ gExtParams[param] } {}
 
       inline float operator()(float) const noexcept {
         return val_.load();
@@ -599,7 +602,7 @@ namespace rtspice::components {
   class linear_transfer {
     public:
 
-      static constexpr bool static_v   = true;
+      static constexpr bool static_v    = true;
       static constexpr bool nonlinear_v = false;
 
       linear_transfer(float df) :
@@ -620,6 +623,12 @@ namespace rtspice::components {
   using ac_voltage = voltage_source<sine_function>;
 
   using ext_voltage = voltage_source<external_function>;
+  using ext_current = current_source<external_function>;
+
+  using linear_vcvs = vcvs<linear_transfer>;
+  using linear_vccs = vccs<linear_transfer>;
+  using linear_cccs = cccs<linear_transfer>;
+  using linear_ccvs = ccvs<linear_transfer>;
 
 }		// -----  end of namespace rtspice::components  -----
 

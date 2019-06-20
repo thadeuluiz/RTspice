@@ -19,44 +19,58 @@
 #ifndef  resistor_parser_INC
 #define  resistor_parser_INC
 
-#include <boost/spirit/include/phoenix_operator.hpp>
+#include "component_parser.hpp"
+
 #include <boost/spirit/include/phoenix_bind.hpp>
 
-#include "component_parser.hpp"
 #include "resistor.hpp"
 
-namespace rtspice::components::parser {
+namespace rtspice::parser {
 
   namespace qi = boost::spirit::qi;
 
   template<class Iterator, class Skipper>
   struct resistor_parser : component_parser<Iterator, Skipper> {
 
-    resistor_parser() : resistor_parser::base_type{start_} {
+    using component_parser<Iterator, Skipper>::id_;
+    using component_parser<Iterator, Skipper>::value_;
 
-      using qi::alnum;
-      using qi::lit;
-      using qi::float_;
+    resistor_parser() : component_parser<Iterator, Skipper>{start_} {
 
-      using qi::_val;
-      using qi::_1;
-      using qi::_2;
-      using qi::_3;
-      using qi::_4;
-
+      using namespace qi;
       using boost::phoenix::bind;
 
-      id_ %= +alnum;
-
-      linear_resistor_ = (id_ >> id_ >> id_ >> float_)
-        [_val = bind(make_component<linear_resistor>, _1, _2, _3, _4)];
+      linear_resistor_ = (id_ >> id_ >> id_ >> value_)[
+        _val = bind(make_component<components::linear_resistor>, _1, _2, _3, _4)];
 
       start_ %=  &lit('R') >> linear_resistor_;
     };
 
     private:
-      qi::rule<Iterator, std::string()>             id_;
       qi::rule<Iterator, Skipper, component::ptr()> linear_resistor_;
+      qi::rule<Iterator, Skipper, component::ptr()> start_;
+  };
+
+  template<class Iterator, class Skipper>
+  struct diode_parser : component_parser<Iterator, Skipper> {
+
+    using component_parser<Iterator, Skipper>::id_;
+    using component_parser<Iterator, Skipper>::value_;
+
+    diode_parser() : component_parser<Iterator, Skipper>{start_} {
+
+      using namespace qi;
+      using boost::phoenix::bind;
+
+      basic_diode_ = (id_ >> id_ >> id_>> lit("IS=") >> value_ >> lit("N=") >> value_)[
+        _val = bind(make_component<components::basic_diode>, _1, _2, _3, _4, _5)];
+
+      start_ %=  &lit('D') >> basic_diode_;
+
+    };
+
+    private:
+      qi::rule<Iterator, Skipper, component::ptr()> basic_diode_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };
 
