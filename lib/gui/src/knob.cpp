@@ -44,13 +44,14 @@ knob::knob(const string& name, atomic<float>& val, QWidget* parent) :
     dial_->setWrapping(false);
     dial_->setNotchesVisible(true);
 
+    dial_->setValue(dial_max/2);
+
     layout_->addWidget(label_);
     layout_->addWidget(dial_);
 
     connect(dial_, &QDial::valueChanged, this, &knob::set_value);
-
   }
 
 void knob::set_value(int value) {
-  val_.store(static_cast<float>(value)/dial_max);
+  val_.store(static_cast<float>(value)/dial_max, memory_order_relaxed);
 }

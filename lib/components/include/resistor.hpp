@@ -49,7 +49,7 @@ namespace rtspice::components {
         f_(std::forward<Args>(args)...) {}
 
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       virtual void register_(circuit::circuit& c) override {
@@ -76,6 +76,9 @@ namespace rtspice::components {
 
         xa_  = c.get_x(na_);
         xb_  = c.get_x(nb_);
+
+        f_.setup(c);
+
       }
 
       virtual void fill() const noexcept override {
@@ -98,7 +101,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_;
-      const F f_;
+      F f_;
 
       //system references
       circuit::entry_reference<float> Aaa_, Aab_, Aba_, Abb_;
@@ -108,12 +111,12 @@ namespace rtspice::components {
 
   /*!
    * @brief class implementing linear resistance characteristics.
-   *
    */
   class linear_resistance {
     public:
 
-      static constexpr bool static_v   = true;
+      static constexpr bool static_v    = true;
+      static constexpr bool dynamic_v   = false;
       static constexpr bool nonlinear_v = false;
 
       linear_resistance(float R) :
@@ -123,17 +126,48 @@ namespace rtspice::components {
         return std::make_pair(G_*v, G_);
       }
 
+      void setup(circuit::circuit& c) {}
+
     private:
       const float G_;
   };
 
   /*!
+   * @brief class implementing variable resistance characteristics.
+   */
+  class external_resistance {
+    public:
+
+      static constexpr bool static_v    = false;
+      static constexpr bool dynamic_v   = true;
+      static constexpr bool nonlinear_v = false;
+
+      external_resistance(float rmax, std::string param_name) :
+        Rmax_{ rmax },
+        param_name_{ std::move(param_name) } {}
+
+      inline auto operator()(float v) const noexcept {
+        const auto G = 1.0/(val_->load(std::memory_order_relaxed) * Rmax_);
+        return std::make_pair(G*v, G);
+      }
+
+      void setup(circuit::circuit& c) {
+        val_ = &c.get_param(param_name_);
+      }
+
+    private:
+      const float Rmax_;
+      const std::string param_name_;
+      const std::atomic<float>* val_;
+  };
+
+  /*!
    * @brief class implementing shockley equation characteristics
-   *
    */
   class diode_resistance {
     public:
       static constexpr bool static_v    = false;
+      static constexpr bool dynamic_v   = false;
       static constexpr bool nonlinear_v = true;
 
       diode_resistance(float IS, float N) :
@@ -141,6 +175,8 @@ namespace rtspice::components {
         N_Vt_{ N * Vt },
         e_sat_ ( IS_*std::expm1(v_knee/N_Vt_) ),
         df_sat_( IS_*std::exp(v_knee/N_Vt_)/N_Vt_ ) { }
+
+      void setup(circuit::circuit& c) {}
 
       inline auto operator()(float v) const noexcept -> std::pair<float,float> {
 
@@ -168,6 +204,7 @@ namespace rtspice::components {
   };
 
   using linear_resistor = resistor<linear_resistance>;
+  using variable_resistor = resistor<external_resistance>;
   using basic_diode     = resistor<diode_resistance>;
 
 }		// -----  end of namespace rtspice::components  -----

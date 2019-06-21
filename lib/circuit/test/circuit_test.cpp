@@ -76,8 +76,8 @@ SCENARIO("circuit initialization", "[circuit]") {
 
       c.nr_step_();
 
-      CHECK(c.solution("1") == Approx(1.0f));
-      CHECK(c.solution("2") == Approx(0.5f));
+      CHECK(*c.get_x("1") == Approx(1.0f));
+      CHECK(*c.get_x("2") == Approx(0.5f));
 
       constexpr auto NITER = 44100;
 
@@ -90,9 +90,8 @@ SCENARIO("circuit initialization", "[circuit]") {
       const auto avgTime = nanoseconds{delta}.count()/NITER;
 
       INFO( "average iteration time: " << avgTime << " ns");
-      CHECK(c.solution("1") == Approx(1.0f));
-      CHECK(c.solution("2") == Approx(0.5f));
-
+      CHECK(*c.get_x("1") == Approx(1.0f));
+      CHECK(*c.get_x("2") == Approx(0.5f));
     }
 
   }
@@ -317,7 +316,7 @@ SCENARIO("basic circuit simulation", "[circuit]") {
       make_component<linear_capacitor>("C4",  "1", "2", 51.0e-12),
       make_component<basic_diode>     ("D1",  "1", "2", 4.352e-9f, 1.906f),  //1n4148
       make_component<basic_diode>     ("D2",  "2", "1", 4.352e-9f, 1.906f),  //1n4148
-      make_component<linear_resistor> ("R6",  "2", "1", 51.0e3 + dist),
+      make_component<variable_resistor>("R6", "2", "1", 51.0e3, "dist"),
 
       //tone section
       make_component<linear_resistor> ("R7",  "1", "5", 4.7e3),
@@ -337,7 +336,7 @@ SCENARIO("basic circuit simulation", "[circuit]") {
     circuit c{components};
 
     constexpr float delta_t = 1.0 / 44100.0;
-    constexpr int   niter   = 4410000;
+    constexpr int   niter   = 44100;
 
     THEN("basic simulation") {
 

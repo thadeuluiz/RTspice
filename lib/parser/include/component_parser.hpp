@@ -62,7 +62,7 @@ namespace rtspice::parser {
   struct component_parser : qi::grammar<Iterator, Skipper, component::ptr()> {
 
     template<class Start>
-    explicit component_parser(Start&& start) :
+    component_parser(Start&& start) :
       component_parser::base_type{ std::forward<Start>(start) } {
 
         using namespace qi;
@@ -75,7 +75,7 @@ namespace rtspice::parser {
       qi::rule<Iterator, std::string()> id_;
       qi::rule<Iterator, float()>       value_;
     private:
-      si_prefixes                 prefix_;
+      si_prefixes                       prefix_;
   };
 
 }		// -----  end of namespace rtspice::parser  -----

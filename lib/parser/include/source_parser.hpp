@@ -64,12 +64,6 @@ namespace rtspice::parser {
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };
 
-  template<class Iterator, class Skipper>
-  using voltage_source_parser = independent_source_parser<'V', components::voltage_source, Iterator, Skipper>;
-
-  template<class Iterator, class Skipper>
-  using current_source_parser = independent_source_parser<'I', components::current_source, Iterator, Skipper>;
-
   /*!
    * @brief generic parser for dependent sources
    *
@@ -100,16 +94,32 @@ namespace rtspice::parser {
   };
 
   template<class Iterator, class Skipper>
-  using vcvs_parser = controlled_source_parser<'E', components::vcvs, Iterator, Skipper>;
+  struct source_parser : component_parser<Iterator, Skipper> {
 
-  template<class Iterator, class Skipper>
-  using cccs_parser = controlled_source_parser<'F', components::cccs, Iterator, Skipper>;
+    source_parser() :
+      component_parser<Iterator, Skipper>{ start_ } {
 
-  template<class Iterator, class Skipper>
-  using vccs_parser = controlled_source_parser<'G', components::vccs, Iterator, Skipper>;
+        start_ %= voltage_
+          | current_
+          | voltage_amp_
+          | current_amp_
+          | transconductor_
+          | transresistor_;
 
-  template<class Iterator, class Skipper>
-  using ccvs_parser = controlled_source_parser<'H', components::ccvs, Iterator, Skipper>;
+    }
+
+    private:
+      qi::rule<Iterator, Skipper, components::component::ptr()> start_;
+
+      independent_source_parser<'V', components::voltage_source, Iterator, Skipper> voltage_;
+      independent_source_parser<'I', components::current_source, Iterator, Skipper> current_;
+
+      controlled_source_parser<'E', components::vcvs, Iterator, Skipper> voltage_amp_;
+      controlled_source_parser<'F', components::cccs, Iterator, Skipper> current_amp_;
+      controlled_source_parser<'G', components::vccs, Iterator, Skipper> transconductor_;
+      controlled_source_parser<'H', components::ccvs, Iterator, Skipper> transresistor_;
+
+  };
 
 }		// -----  end of namespace rtspice::parser  -----
 

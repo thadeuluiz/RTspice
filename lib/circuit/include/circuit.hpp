@@ -22,9 +22,15 @@
 
 #include <vector>
 #include <map>
+#include <unordered_map>
+
 #include <tuple>
 #include <string>
+#include <atomic>
 
+#include <cassert>
+
+#include <cuda_runtime.h>
 #include <cusparse.h>
 #include <cusolverSp.h>
 #include <cusolverRf.h>
@@ -97,6 +103,12 @@ namespace rtspice::circuit {
 
       struct {
 
+        //dynamic parameters (i.e. potentiometers, vgas, etc.)
+        std::unordered_map<std::string, std::atomic<float>> params;
+
+        //inputs
+        std::unordered_map<std::string, float> inputs;
+
         std::size_t         m, nnz;       //problem size
 
         cuda_ptr_<int>      row, col;
@@ -163,16 +175,25 @@ namespace rtspice::circuit {
       //recover address of current solution entry
       entry_reference<const float> get_state(const std::string& node_name) const;
 
+      auto& get_param(const std::string& param_name) {
+        if(system_.params.find(param_name) == system_.params.end())
+          system_.params[param_name] = 0.5f;
+        return system_.params[param_name];
+      };
+
+      auto& get_input(const std::string& param_name) {
+        return system_.inputs[param_name];
+      };
+
       const float* get_time() const;
       const float* get_delta_time() const;
 
-      auto& nodes() const {
-        return nodes_.names;
-      }
+      auto& nodes() const { return nodes_.names; }
+      auto& entries() const { return nodes_.pointers; }
 
-      auto solution(const std::string& node_name) const {
-        return system_.x[nodes_.names.at(node_name)];
-      }
+      auto& params() { return system_.params; }
+      auto& inputs() { return system_.inputs; }
+
   };
 
 }		// -----  end of namespace rtspice::circuit  -----

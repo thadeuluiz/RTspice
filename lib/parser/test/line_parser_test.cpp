@@ -19,7 +19,7 @@
 #include <vector>
 
 #include <catch2/catch.hpp>
-#include "line_parser.hpp"
+#include "netlist_parser.hpp"
 
 using namespace std::string_literals;
 

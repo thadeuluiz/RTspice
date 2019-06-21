@@ -26,8 +26,6 @@
 #include "component.hpp"
 #include "circuit.hpp"
 
-extern std::unordered_map<std::string, std::atomic<float>> gExtParams;
-
 namespace rtspice::components {
 
   /*!
@@ -44,7 +42,7 @@ namespace rtspice::components {
 
       virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return F::dynamic_v; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
       current_source(std::string id,
@@ -64,20 +62,19 @@ namespace rtspice::components {
       virtual void setup(circuit::circuit& c) override {
         ba_ = c.get_b(na_);
         bb_ = c.get_b(nb_);
-        t_ = c.get_time();
+        f_.setup(c);
       }
 
       virtual void fill() const noexcept override {
-        const auto I = f_(*t_);
+        const auto I = f_();
         *ba_ -= I;
         *bb_ += I;
       }
 
     private:
       const std::string na_, nb_;
-      const F f_;
+      F f_;
       circuit::entry_reference<float> ba_, bb_;
-      const float *t_;
   };
 
   /*!
@@ -95,7 +92,7 @@ namespace rtspice::components {
 
       virtual bool is_static()    const override { return F::static_v; }
       virtual bool is_dynamic()   const override { return F::dynamic_v; }
-      virtual bool is_nonlinear() const override { return false; }
+      virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
       voltage_source(std::string id,
@@ -129,13 +126,13 @@ namespace rtspice::components {
         Ajb_ = c.get_A({nj_, nb_});
         bj_  = c.get_b(nj_);
 
-        t_   = c.get_time();
+        f_.setup(c);
 
       }
 
       virtual void fill() const noexcept override {
 
-        const auto V = f_(*t_);
+        const auto V = f_();
 
         *Aaj_ += 1.0;
         *Abj_ -= 1.0;
@@ -147,9 +144,8 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nj_;
-      const F f_;
+      F f_;
       circuit::entry_reference<float> Aaj_, Abj_, Aja_, Ajb_, bj_;
-      const float* t_;
   };
 
   /*!
@@ -165,7 +161,7 @@ namespace rtspice::components {
   class vcvs : public component {
     public:
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_dynamic()   const override { return F::static_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
@@ -214,6 +210,8 @@ namespace rtspice::components {
 
         bj_  = c.get_b(nj_);
 
+        f_.setup(c);
+
       }
 
       virtual void fill() const noexcept override {
@@ -238,7 +236,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const F f_;
+      F f_;
       circuit::entry_reference<float> Aaj_, Abj_, Aja_, Ajb_, Ajc_, Ajd_;
       circuit::entry_reference<float> bj_;
       circuit::entry_reference<const float> xc_, xd_;
@@ -257,7 +255,7 @@ namespace rtspice::components {
   class cccs : public component {
     public:
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
@@ -306,6 +304,7 @@ namespace rtspice::components {
 
         xj_  = c.get_x(nj_);
 
+        f_.setup(c);
       }
 
       virtual void fill() const noexcept override {
@@ -331,7 +330,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nj_;
-      const F f_;
+      F f_;
       circuit::entry_reference<float> Aaj_, Abj_, Acj_, Adj_, Ajc_, Ajd_;
       circuit::entry_reference<float> ba_, bb_;
       circuit::entry_reference<const float> xj_;
@@ -350,7 +349,7 @@ namespace rtspice::components {
   class vccs : public component {
     public:
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
@@ -394,6 +393,8 @@ namespace rtspice::components {
         xc_  = c.get_x(nc_);
         xd_  = c.get_x(nd_);
 
+        f_.setup(c);
+
       }
 
       virtual void fill() const noexcept override {
@@ -416,8 +417,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_;
-      const F f_;
-
+      F f_;
       circuit::entry_reference<float> Aac_, Aad_, Abc_, Abd_;
       circuit::entry_reference<float> ba_, bb_;
       circuit::entry_reference<const float> xc_, xd_;
@@ -436,7 +436,7 @@ namespace rtspice::components {
   class ccvs : public component {
     public:
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return false; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
@@ -500,6 +500,8 @@ namespace rtspice::components {
 
         xx_  = c.get_x(nx_);
 
+        f_.setup(c);
+
       }
 
       virtual void fill() const noexcept override {
@@ -527,7 +529,7 @@ namespace rtspice::components {
 
     private:
       const std::string na_, nb_, nc_, nd_, nx_, ny_;
-      const F f_;
+      F f_;
       circuit::entry_reference<float> Aay_, Aby_, Acx_, Adx_,
                                       Axc_, Axd_, Aya_, Ayb_, Ayx_;
 
@@ -543,13 +545,16 @@ namespace rtspice::components {
     public:
       static constexpr bool static_v   = true;
       static constexpr bool dynamic_v  = false;
+      static constexpr bool nonlinear_v= false;
 
       constant_function(float val) :
         val_{ val } {}
 
-      inline float operator()(float) const noexcept {
+      inline float operator()() const noexcept {
         return val_;
       }
+
+      void setup(circuit::circuit&) {}
 
     private:
       const float val_;
@@ -563,18 +568,24 @@ namespace rtspice::components {
     public:
       static constexpr bool static_v   = false;
       static constexpr bool dynamic_v  = true;
+      static constexpr bool nonlinear_v= false;
 
       sine_function(float A, float f, float phase = 0.0) :
         A_{ A },
         w_( 8.0*std::atan(1.0)*f ), //2 pi f
         phi_( std::atan(1.0)*phase/45.0 ) {} //phase*pi/180
 
-      inline float operator()(float t) const noexcept {
-        return A_*std::sin(w_*t + phi_);
+      inline float operator()() const noexcept {
+        return A_*std::sin(*t_ * w_+ phi_);
+      }
+
+      void setup(circuit::circuit& c) {
+        t_ = c.get_time();
       }
 
     private:
       const float A_, w_, phi_;
+      const float *t_;
   };
 
   /*!
@@ -584,16 +595,22 @@ namespace rtspice::components {
     public:
       static constexpr bool static_v   = false;
       static constexpr bool dynamic_v  = true;
+      static constexpr bool nonlinear_v= false;
 
-      external_function(const std::string& param) :
-        val_{ gExtParams[param] } {}
+      external_function(std::string param) :
+        param_name_{ std::move(param) } {}
 
-      inline float operator()(float) const noexcept {
-        return val_.load();
+      void setup(circuit::circuit& c) {
+        val_ = &c.get_input(param_name_);
+      }
+
+      inline float operator()() const noexcept {
+        return *val_;
       }
 
     private:
-      const std::atomic<float>& val_;
+      const std::string param_name_;
+      const float* val_;
   };
 
   /*!
@@ -603,10 +620,13 @@ namespace rtspice::components {
     public:
 
       static constexpr bool static_v    = true;
+      static constexpr bool dynamic_v   = false;
       static constexpr bool nonlinear_v = false;
 
       linear_transfer(float df) :
         df_( df ) {}
+
+      void setup(circuit::circuit& c) {}
 
       inline auto operator()(float x) const noexcept {
         return std::make_pair(df_*x, df_);

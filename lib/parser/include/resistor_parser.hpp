@@ -15,7 +15,6 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-
 #ifndef  resistor_parser_INC
 #define  resistor_parser_INC
 
@@ -43,11 +42,16 @@ namespace rtspice::parser {
       linear_resistor_ = (id_ >> id_ >> id_ >> value_)[
         _val = bind(make_component<components::linear_resistor>, _1, _2, _3, _4)];
 
-      start_ %=  &lit('R') >> linear_resistor_;
+      variable_resistor_ = (id_ >> id_ >> id_ >> lit("EXT") >> value_ >> id_)[
+        _val = bind(make_component<components::variable_resistor>, _1, _2, _3, _4, _5)];
+
+      start_ %=  &lit('R') >> linear_resistor_ | variable_resistor_;
+
     };
 
     private:
       qi::rule<Iterator, Skipper, component::ptr()> linear_resistor_;
+      qi::rule<Iterator, Skipper, component::ptr()> variable_resistor_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };
 

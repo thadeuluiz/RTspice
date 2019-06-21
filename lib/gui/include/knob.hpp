@@ -40,7 +40,7 @@ namespace rtspice::gui {
 
     private:
 
-      static constexpr auto dial_min = 0;
+      static constexpr auto dial_min = 1;
       static constexpr auto dial_max = 100;
 
       QLayout* layout_;

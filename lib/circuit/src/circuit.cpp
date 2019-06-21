@@ -15,14 +15,12 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-#include <cassert>
+#include "circuit.hpp"
+
 #include <cstdint>
 #include <algorithm>
 #include <execution>
 #include <numeric>
-
-#include <cuda_runtime.h>
-#include "circuit.hpp"
 
 using namespace std;
 
@@ -44,8 +42,6 @@ namespace rtspice::circuit {
       init_components_();
 
       setup_static_();               //feed static stamps
-
-
   }
 
   circuit::~circuit() {

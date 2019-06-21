@@ -101,7 +101,7 @@ SCENARIO("diode_parser identifies diode statements", "[diode_parser]") {
 
 SCENARIO("voltage_source identifies voltage statements", "[voltage_source_parser]") {
 
-  voltage_source_parser<string::const_iterator, qi::space_type> grammar;
+  source_parser<string::const_iterator, qi::space_type> grammar;
 
   GIVEN("an independent DC voltage source statement") {
 
