@@ -108,6 +108,7 @@ namespace rtspice::circuit {
 
         //inputs
         std::unordered_map<std::string, float> inputs;
+        std::unordered_map<std::string, entry_reference<const float>> outputs;
 
         std::size_t         m, nnz;       //problem size
 
@@ -185,6 +186,10 @@ namespace rtspice::circuit {
         return system_.inputs[param_name];
       };
 
+      auto& get_output(const std::string& param_name) {
+        return system_.outputs[param_name];
+      };
+
       const float* get_time() const;
       const float* get_delta_time() const;
 
@@ -193,6 +198,7 @@ namespace rtspice::circuit {
 
       auto& params() { return system_.params; }
       auto& inputs() { return system_.inputs; }
+      auto& outputs() { return system_.outputs; }
 
   };
 

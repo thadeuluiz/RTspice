@@ -23,13 +23,17 @@
 
 #include <vector>
 
-#include <QGroupBox>
+#include <QWidget>
 
-#include "jack_widget.hpp"
+class QGridLayout;
+class QGroupBox;
 
 namespace rtspice::gui {
 
-  class circuit_widget : public QGroupBox {
+  class jack_widget;
+  class knob_holder;
+
+  class circuit_widget : public QWidget {
     private:
       Q_OBJECT;
 
@@ -38,9 +42,15 @@ namespace rtspice::gui {
           const std::vector<components::component::ptr>& components,
           QWidget* parent);
 
+      ~circuit_widget();
+
     private:
       circuit::circuit c_;
-      jack_widget *jack_widget_;
+      QGridLayout   *layout_    = nullptr;
+      QGroupBox     *info_box_  = nullptr;
+      knob_holder   *knobs_     = nullptr;
+      jack_widget   *jack_info_ = nullptr;
+
   };
 
 }		// -----  end of namespace rtspice::gui  -----

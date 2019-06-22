@@ -17,6 +17,7 @@
 
 #include "main_window.hpp"
 
+#include <QLayout>
 #include <QMenuBar>
 #include <QMenu>
 #include <QAction>
@@ -33,19 +34,20 @@ using namespace rtspice::gui;
 main_window::main_window(QWidget* parent, Qt::WindowFlags flags) :
   QMainWindow{parent, flags} {
 
+    layout()->setContentsMargins(200, 200, 200, 200);
+
     //create menu items
-    file_menu_ = menuBar()->addMenu(tr("File"));
+    file_menu_ = menuBar()->addMenu(tr("&File"));
 
     //create menu actions
-    open_file_action_ = new QAction{tr("Open..."), file_menu_};
+    open_file_action_ = new QAction{tr("&Open..."), file_menu_};
     open_file_action_->setShortcut(QKeySequence::Open);
     connect(open_file_action_, &QAction::triggered, this, &main_window::open_file);
 
-    close_file_action_ = new QAction{tr("Close"), file_menu_};
+    close_file_action_ = new QAction{tr("&Close"), file_menu_};
     close_file_action_->setShortcut(QKeySequence::Close);
     close_file_action_->setEnabled(false);
     connect(close_file_action_, &QAction::triggered, this, &main_window::close_file);
-
 
     // register actions
     file_menu_->addAction(open_file_action_);

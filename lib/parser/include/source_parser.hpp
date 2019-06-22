@@ -31,13 +31,11 @@ namespace rtspice::parser {
    * @brief generic parser for independent sources
    *
    * Relevant template parameters are the prefix and the source type template,
-   * i.e. voltage_source<...> or current_source<...>
+   * i.e. voltage_source<...> or current_source<...>, supports constant, sine
+   * wave and external sources
    */
   template<char Prefix, template<class...> class Source, class Iterator, class Skipper>
   struct independent_source_parser : component_parser<Iterator, Skipper> {
-
-    using component_parser<Iterator, Skipper>::id_;
-    using component_parser<Iterator, Skipper>::value_;
 
     independent_source_parser() : component_parser<Iterator, Skipper>{start_} {
 
@@ -48,7 +46,7 @@ namespace rtspice::parser {
       dc_source_ = (id_ >> id_ >> id_ >> lit("DC") >> value_)
         [_val = bind(make_component<Source<constant_function>>, _1, _2, _3, _4)];
 
-      ac_source_ = (id_ >> id_ >> id_ >> lit("AC") >> value_ >> value_ >> value_)
+      ac_source_ = (id_ >> id_ >> id_ >> lit("SINE") >> value_ >> value_ >> value_)
         [_val = bind(make_component<Source<sine_function>>, _1, _2, _3, _4, _5, _6)];
 
       ext_source_ = (id_ >> id_ >> id_ >> lit("EXT") >> id_)
@@ -58,6 +56,9 @@ namespace rtspice::parser {
     };
 
     private:
+      using component_parser<Iterator, Skipper>::id_;
+      using component_parser<Iterator, Skipper>::value_;
+
       qi::rule<Iterator, Skipper, component::ptr()> dc_source_;
       qi::rule<Iterator, Skipper, component::ptr()> ac_source_;
       qi::rule<Iterator, Skipper, component::ptr()> ext_source_;
@@ -68,13 +69,10 @@ namespace rtspice::parser {
    * @brief generic parser for dependent sources
    *
    * Relevant template parameters are the prefix and the source type template,
-   * i.e. vcvs<...>, vccs<...>, etc...
+   * i.e. vcvs<...>, vccs<...>, etc. Supports linear_transfer only
    */
   template<char Prefix, template<class...> class Source, class Iterator, class Skipper>
   struct controlled_source_parser : component_parser<Iterator, Skipper> {
-
-    using component_parser<Iterator, Skipper>::id_;
-    using component_parser<Iterator, Skipper>::value_;
 
     controlled_source_parser() : component_parser<Iterator, Skipper>{start_} {
 
@@ -89,6 +87,9 @@ namespace rtspice::parser {
     };
 
     private:
+      using component_parser<Iterator, Skipper>::id_;
+      using component_parser<Iterator, Skipper>::value_;
+
       qi::rule<Iterator, Skipper, component::ptr()> linear_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };
@@ -99,8 +100,8 @@ namespace rtspice::parser {
     source_parser() :
       component_parser<Iterator, Skipper>{ start_ } {
 
-        start_ %= voltage_
-          | current_
+        start_ %= current_
+          | voltage_
           | voltage_amp_
           | current_amp_
           | transconductor_

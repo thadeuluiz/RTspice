@@ -21,6 +21,7 @@
 #ifndef  netlist_parser_INC
 #define  netlist_parser_INC
 
+#include "probe_parser.hpp"
 #include "resistor_parser.hpp"
 #include "source_parser.hpp"
 #include "dynamic_parser.hpp"
@@ -74,7 +75,8 @@ namespace rtspice::parser {
     statement_parser() :
       component_parser<Iterator, Skipper>{ start_ } {
 
-        start_ %= resistor_
+        start_ %= probe_
+          | resistor_
           | source_
           | capacitor_
           | inductor_
@@ -86,6 +88,7 @@ namespace rtspice::parser {
     private:
       qi::rule<Iterator, Skipper, components::component::ptr()> start_;
 
+      probe_parser         <Iterator, Skipper>   probe_;
       resistor_parser      <Iterator, Skipper>   resistor_;
       diode_parser         <Iterator, Skipper>   diode_;
       source_parser        <Iterator, Skipper>   source_;

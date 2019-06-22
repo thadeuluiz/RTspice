@@ -28,9 +28,6 @@ namespace rtspice::parser {
   template<char Prefix, class F, class Iterator, class Skipper>
   struct dynamic_parser : component_parser<Iterator, Skipper> {
 
-    using component_parser<Iterator, Skipper>::id_;
-    using component_parser<Iterator, Skipper>::value_;
-
     dynamic_parser() : component_parser<Iterator, Skipper>{start_} {
 
       using namespace qi;
@@ -43,6 +40,9 @@ namespace rtspice::parser {
     };
 
     private:
+      using component_parser<Iterator, Skipper>::id_;
+      using component_parser<Iterator, Skipper>::value_;
+
       qi::rule<Iterator, Skipper, component::ptr()> dynamic_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };

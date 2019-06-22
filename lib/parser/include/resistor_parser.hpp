@@ -31,9 +31,6 @@ namespace rtspice::parser {
   template<class Iterator, class Skipper>
   struct resistor_parser : component_parser<Iterator, Skipper> {
 
-    using component_parser<Iterator, Skipper>::id_;
-    using component_parser<Iterator, Skipper>::value_;
-
     resistor_parser() : component_parser<Iterator, Skipper>{start_} {
 
       using namespace qi;
@@ -50,6 +47,9 @@ namespace rtspice::parser {
     };
 
     private:
+      using component_parser<Iterator, Skipper>::id_;
+      using component_parser<Iterator, Skipper>::value_;
+
       qi::rule<Iterator, Skipper, component::ptr()> linear_resistor_;
       qi::rule<Iterator, Skipper, component::ptr()> variable_resistor_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
@@ -57,9 +57,6 @@ namespace rtspice::parser {
 
   template<class Iterator, class Skipper>
   struct diode_parser : component_parser<Iterator, Skipper> {
-
-    using component_parser<Iterator, Skipper>::id_;
-    using component_parser<Iterator, Skipper>::value_;
 
     diode_parser() : component_parser<Iterator, Skipper>{start_} {
 
@@ -74,6 +71,9 @@ namespace rtspice::parser {
     };
 
     private:
+      using component_parser<Iterator, Skipper>::id_;
+      using component_parser<Iterator, Skipper>::value_;
+
       qi::rule<Iterator, Skipper, component::ptr()> basic_diode_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };

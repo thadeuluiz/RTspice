@@ -1,11 +1,11 @@
 /*!
- *    @file  opamp_parser.hpp
- *   @brief basic opamp parser 
+ *    @file  probe_parser.hpp
+ *   @brief  syntax for variable probing
  *
  *  @author  Thadeu Luiz Barbosa Dias (tlbd)
  *
  *  @internal
- *       Created:  06/20/2019
+ *       Created:  06/22/2019
  *      Revision:  none
  *      Compiler:  g++
  *  Organization:  SMT - Signals, Multimedia and Telecommunications Lab
@@ -15,38 +15,36 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-
-#ifndef  opamp_parser_INC
-#define  opamp_parser_INC
+#ifndef  probe_parser_INC
+#define  probe_parser_INC
 
 #include "component_parser.hpp"
 
 #include <boost/spirit/include/phoenix_bind.hpp>
 
-#include "opamp.hpp"
+#include "probe.hpp"
+
 
 namespace rtspice::parser {
 
   template<class Iterator, class Skipper>
-  struct opamp_parser : component_parser<Iterator, Skipper> {
+  struct probe_parser : component_parser<Iterator, Skipper> {
 
-    opamp_parser() : component_parser<Iterator, Skipper>{start_} {
+    probe_parser() : component_parser<Iterator, Skipper>{start_} {
 
       using namespace qi;
       using boost::phoenix::bind;
 
-      ideal_opamp_ = (id_ >> id_ >> id_ >> id_ >> id_ >> lit("OPAMP"))[
-        _val = bind(make_component<components::ideal_opamp>, _1, _2, _3, _4, _5)];
+      start_ =  lit("PROBE") >> id_[
+        _val = bind(make_component<components::probe>, _1)];
 
-      start_ %=  &lit('U') >> ideal_opamp_;
     };
 
     private:
       using component_parser<Iterator, Skipper>::id_;
-      qi::rule<Iterator, Skipper, component::ptr()> ideal_opamp_;
       qi::rule<Iterator, Skipper, component::ptr()> start_;
   };
 
 }		// -----  end of namespace rtspice::parser  -----
 
-#endif   // ----- #ifndef opamp_parser_INC  -----
+#endif   // ----- #ifndef probe_parser_INC  -----

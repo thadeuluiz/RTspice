@@ -17,11 +17,11 @@
 
 #include "circuit_widget.hpp"
 
-#include <QString>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+#include <QGridLayout>
+#include <QGroupBox>
 #include <QLabel>
 
+#include "jack_widget.hpp"
 #include "knob.hpp"
 
 using namespace std;
@@ -31,33 +31,37 @@ using rtspice::components::component;
 
 circuit_widget::circuit_widget(const QString& name,
     const vector<component::ptr>& components, QWidget* parent) :
-  QGroupBox{ name, parent },
+  QWidget{ parent },
   c_{ components } {
 
-    setFlat(false);
-
     //prepare layout
-    auto outer_box = new QHBoxLayout{this};
+    layout_ = new QGridLayout{this};
+    setLayout(layout_);
 
-    //box for circuit definitions
-    auto left_box  = new QVBoxLayout{};
-    outer_box->addLayout(left_box);
+    info_box_ = new QGroupBox{"Circuit information", this};
+    info_box_->setLayout(new QVBoxLayout{info_box_});
+    layout_->addWidget(info_box_, 0, 0, 1, 1);
 
-    left_box->addWidget(
-        new QLabel{QString{"Loaded circuit with %1 nodes."}
-          .arg(c_.nodes().size())});
+    info_box_->layout()->addWidget(
+        new QLabel{QString{"%1."}.arg(name), info_box_});
 
-    left_box->addWidget(
-        new QLabel{QString{"Modified admitance matrix has %1 non-zeros."}
-          .arg(c_.entries().size())});
+    info_box_->layout()->addWidget(
+      new QLabel{QString{"Loaded circuit with %1 nodes."}
+        .arg(c_.nodes().size()), info_box_});
 
-    auto knob_box = new QHBoxLayout{};
-    left_box->addLayout(knob_box);
+    info_box_->layout()->addWidget(
+      new QLabel{QString{"Modified admitance matrix has %1 non-zeros."}
+        .arg(c_.entries().size()), info_box_});
 
-    for(auto&& [name, val] : c_.params()) {
-      knob_box->addWidget( new knob{name, val} );
-    }
 
-    outer_box->addWidget( new jack_widget{c_, this} );
+    knobs_ = new knob_holder{c_, this};
+    layout_->addWidget(knobs_, 1, 0, 1, 2);
 
+    jack_info_ = new jack_widget{c_, this};
+
+    layout_->addWidget(jack_info_, 0, 1, 1, 1);
   }
+
+circuit_widget::~circuit_widget() {
+  delete jack_info_; //jack must be destroyed first
+}

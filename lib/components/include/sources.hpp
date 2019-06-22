@@ -102,7 +102,7 @@ namespace rtspice::components {
         component{ std::move(id) },
         na_{ std::move(na) },
         nb_{ std::move(nb) },
-        nj_{ "@J" + id_ },
+        nj_{ "J@" + id_ },
         f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
@@ -161,7 +161,7 @@ namespace rtspice::components {
   class vcvs : public component {
     public:
       virtual bool is_static()    const override { return F::static_v; }
-      virtual bool is_dynamic()   const override { return F::static_v; }
+      virtual bool is_dynamic()   const override { return F::dynamic_v; }
       virtual bool is_nonlinear() const override { return F::nonlinear_v; }
 
       template<class... Args>
@@ -176,7 +176,7 @@ namespace rtspice::components {
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
-        nj_{ "@J" + id_ },
+        nj_{ "J@" + id_ },
         f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
@@ -270,7 +270,7 @@ namespace rtspice::components {
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
-        nj_{ "@J" + id_ },
+        nj_{ "J@" + id_ },
         f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
@@ -451,8 +451,8 @@ namespace rtspice::components {
         nb_{ std::move(nb) },
         nc_{ std::move(nc) },
         nd_{ std::move(nd) },
-        nx_{ "@Jx" + id_ },
-        ny_{ "@Jy" + id_ },
+        nx_{ "Jx@" + id_ },
+        ny_{ "Jy@" + id_ },
         f_( std::forward<Args>(args)... ) {}
 
       virtual void register_(circuit::circuit &c) override {
