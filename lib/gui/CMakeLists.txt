@@ -13,10 +13,12 @@ add_library(gui ${sources})
 
 target_include_directories(gui
   PUBLIC
-  include/)
+  include/
+  ${Jack_INCLUDE_DIRS})
 
 target_link_libraries(gui
   PUBLIC
   circuit
   parser
+  ${Jack_LIBRARIES}
   Qt5::Widgets)
