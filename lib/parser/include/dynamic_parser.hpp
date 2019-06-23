@@ -36,7 +36,7 @@ namespace rtspice::parser {
       dynamic_ = (id_ >> id_ >> id_ >> value_)[
         _val = bind(make_component<components::dynamic<F>>, _1, _2, _3, _4)];
 
-      start_ %=  &lit(Prefix) >> dynamic_;
+      start_ %=  &lit(Prefix) >> (dynamic_);
     };
 
     private:

@@ -16,12 +16,8 @@
  */
 
 #include <catch2/catch.hpp>
-//#include "component_parser.hpp"
 
-#include "resistor_parser.hpp"
-#include "source_parser.hpp"
-#include "dynamic_parser.hpp"
-#include "opamp_parser.hpp"
+#include "netlist_parser.hpp"
 
 using namespace std;
 using namespace std::string_literals;
@@ -29,13 +25,9 @@ using namespace std::string_literals;
 using namespace rtspice::parser;
 using namespace rtspice::components;
 
-extern unordered_map<string, atomic<float>> gExtParams;
+statement_parser<string::const_iterator, qi::space_type> grammar;
 
-unordered_map<string, atomic<float>> gExtParams;
-
-SCENARIO("resistor_parser identifies resistor statements", "[resistor_parser]") {
-
-  resistor_parser<string::const_iterator, qi::space_type> grammar;
+SCENARIO("resistor parsing", "[statement_parser]") {
 
   GIVEN("a linear resistor statement") {
 
@@ -61,14 +53,13 @@ SCENARIO("resistor_parser identifies resistor statements", "[resistor_parser]") 
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "RX"s);
+        REQUIRE(dynamic_pointer_cast<linear_resistor>(component_) != nullptr);
       }
     }
   }
 }
 
-SCENARIO("diode_parser identifies diode statements", "[diode_parser]") {
-
-  diode_parser<string::const_iterator, qi::space_type> grammar;
+SCENARIO("diode parsing", "[statement_parser]") {
 
   GIVEN("a diode statement") {
 
@@ -94,16 +85,15 @@ SCENARIO("diode_parser identifies diode statements", "[diode_parser]") {
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "DX"s);
+        REQUIRE(dynamic_pointer_cast<basic_diode>(component_) != nullptr);
       }
     }
   }
 }
 
-SCENARIO("voltage_source identifies voltage statements", "[voltage_source_parser]") {
+SCENARIO("voltage source parsing", "[statement_parser]") {
 
-  source_parser<string::const_iterator, qi::space_type> grammar;
-
-  GIVEN("an independent DC voltage source statement") {
+  GIVEN("an independent DC source statement") {
 
     const string statement = "VX net0 net1 DC 12";
 
@@ -127,13 +117,14 @@ SCENARIO("voltage_source identifies voltage statements", "[voltage_source_parser
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "VX"s);
+        REQUIRE(dynamic_pointer_cast<dc_voltage>(component_) != nullptr);
       }
     }
   }
 
-  GIVEN("an independent AC voltage source statement") {
+  GIVEN("an independent AC source statement") {
 
-    const string statement = "VX net0 net1 AC 12 1e3 0";
+    const string statement = "VX net0 net1 SINE 12 1e3 0";
 
     WHEN("parsed") {
 
@@ -155,11 +146,12 @@ SCENARIO("voltage_source identifies voltage statements", "[voltage_source_parser
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "VX"s);
+        REQUIRE(dynamic_pointer_cast<ac_voltage>(component_) != nullptr);
       }
     }
   }
 
-  GIVEN("an independent external voltage source statement") {
+  GIVEN("an independent external source statement") {
 
     const string statement = "VX net0 net1 EXT IN";
 
@@ -183,14 +175,104 @@ SCENARIO("voltage_source identifies voltage statements", "[voltage_source_parser
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "VX"s);
+        REQUIRE(dynamic_pointer_cast<ext_voltage>(component_) != nullptr);
+      }
+    }
+  }
+
+}
+
+SCENARIO("current source parsing", "[statement_parser]") {
+
+  GIVEN("an independent DC source statement") {
+
+    const string statement = "IX net0 net1 DC 12";
+
+    WHEN("parsed") {
+
+      component::ptr component_;
+
+      auto begin = statement.cbegin();
+      auto end   = statement.cend();
+
+      auto ok = qi::phrase_parse(begin,
+          end,
+          grammar,
+          qi::space,
+          component_);
+
+      THEN("parsing is successful") {
+        REQUIRE(ok == true);
+        REQUIRE(begin == end);
+      }
+      THEN("component is created") {
+        REQUIRE(component_ != nullptr);
+        REQUIRE(component_->id() == "IX"s);
+        REQUIRE(dynamic_pointer_cast<dc_current>(component_) != nullptr);
+      }
+    }
+  }
+
+  GIVEN("an independent AC source statement") {
+
+    const string statement = "IX net0 net1 SINE 12 1e3 0";
+
+    WHEN("parsed") {
+
+      component::ptr component_;
+
+      auto begin = statement.cbegin();
+      auto end   = statement.cend();
+
+      auto ok = qi::phrase_parse(begin,
+          end,
+          grammar,
+          qi::space,
+          component_);
+
+      THEN("parsing is successful") {
+        REQUIRE(ok == true);
+        REQUIRE(begin == end);
+      }
+      THEN("component is created") {
+        REQUIRE(component_ != nullptr);
+        REQUIRE(component_->id() == "IX"s);
+        REQUIRE(dynamic_pointer_cast<ac_current>(component_) != nullptr);
+      }
+    }
+  }
+
+  GIVEN("an independent external source statement") {
+
+    const string statement = "IX net0 net1 EXT IN";
+
+    WHEN("parsed") {
+
+      component::ptr component_;
+
+      auto begin = statement.cbegin();
+      auto end   = statement.cend();
+
+      auto ok = qi::phrase_parse(begin,
+          end,
+          grammar,
+          qi::space,
+          component_);
+
+      THEN("parsing is successful") {
+        REQUIRE(ok == true);
+        REQUIRE(begin == end);
+      }
+      THEN("component is created") {
+        REQUIRE(component_ != nullptr);
+        REQUIRE(component_->id() == "IX"s);
+        REQUIRE(dynamic_pointer_cast<ext_current>(component_) != nullptr);
       }
     }
   }
 }
 
-SCENARIO("dynamic_parser identifies capacitor statements", "[dynamic_parser]") {
-
-  capacitor_parser<string::const_iterator, qi::space_type> grammar;
+SCENARIO("dynamic component parser", "[statement_parser]") {
 
   GIVEN("a linear capacitor statement") {
 
@@ -216,19 +298,18 @@ SCENARIO("dynamic_parser identifies capacitor statements", "[dynamic_parser]") {
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "CX"s);
+        REQUIRE(dynamic_pointer_cast<linear_capacitor>(component_) != nullptr);
       }
     }
   }
 
 }
 
-SCENARIO("opamp_parser identifies opamp statements", "[opamp_parser]") {
+SCENARIO("OPAMP parsing", "[statement_parser]") {
 
-  opamp_parser<string::const_iterator, qi::space_type> grammar;
+  GIVEN("an OPAMP statement") {
 
-  GIVEN("an opamp statement") {
-
-    const string statement = "UX net0 net1 net2 net3";
+    const string statement = "UX net0 net1 net2 net3 OPAMP";
 
     WHEN("parsed") {
 
@@ -250,6 +331,7 @@ SCENARIO("opamp_parser identifies opamp statements", "[opamp_parser]") {
       THEN("component is created") {
         REQUIRE(component_ != nullptr);
         REQUIRE(component_->id() == "UX"s);
+        REQUIRE(dynamic_pointer_cast<ideal_opamp>(component_) != nullptr);
       }
     }
   }

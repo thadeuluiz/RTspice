@@ -52,7 +52,7 @@ namespace rtspice::parser {
       ext_source_ = (id_ >> id_ >> id_ >> lit("EXT") >> id_)
         [_val = bind(make_component<Source<external_function>>, _1, _2, _3, _4)];
 
-      start_ %=  &lit(Prefix) >> dc_source_ | ac_source_ | ext_source_;
+      start_ %=  &lit(Prefix) >> (dc_source_ | ac_source_ | ext_source_);
     };
 
     private:
@@ -83,7 +83,7 @@ namespace rtspice::parser {
       linear_ = (id_ >> id_ >> id_ >> id_ >> id_ >> value_)
         [_val = bind(make_component<Source<linear_transfer>>, _1, _2, _3, _4, _5, _6)];
 
-      start_ %=  &lit(Prefix) >> linear_;
+      start_ %=  &lit(Prefix) >> (linear_);
     };
 
     private:
@@ -100,8 +100,8 @@ namespace rtspice::parser {
     source_parser() :
       component_parser<Iterator, Skipper>{ start_ } {
 
-        start_ %= current_
-          | voltage_
+        start_ %= voltage_
+          | current_
           | voltage_amp_
           | current_amp_
           | transconductor_

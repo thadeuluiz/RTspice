@@ -38,7 +38,7 @@ namespace rtspice::parser {
       ideal_opamp_ = (id_ >> id_ >> id_ >> id_ >> id_ >> lit("OPAMP"))[
         _val = bind(make_component<components::ideal_opamp>, _1, _2, _3, _4, _5)];
 
-      start_ %=  &lit('U') >> ideal_opamp_;
+      start_ %=  &lit('U') >> (ideal_opamp_);
     };
 
     private:

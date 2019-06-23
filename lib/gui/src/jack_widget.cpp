@@ -62,7 +62,7 @@ jack_widget::jack_widget(circuit::circuit& c, QWidget* parent) :
 void jack_widget::init_client_() {
 
   jack_status_t status;
-  client_ = jack_client_open(program_name, JackNoStartServer, &status, nullptr);
+  client_ = jack_client_open(program_name, JackNullOption, &status, nullptr);
 
   if(!client_) {
     QMessageBox::critical(this, tr(program_name),
@@ -84,7 +84,7 @@ void jack_widget::set_callbacks_() {
 
 void jack_widget::register_ports_() {
 
-  for(auto&& [name, val] : circuit_.inputs()) {
+  for(auto& [name, val] : circuit_.inputs()) {
     auto port = input_port_{};
 
     port.name   = name.c_str();
@@ -93,10 +93,10 @@ void jack_widget::register_ports_() {
     port.entry  = &val;
     port.buffer = nullptr;
 
-    input_ports_.emplace_back(std::move(port));
+    input_ports_.emplace_back(port);
   }
 
-  for(auto&& [name, val] : circuit_.outputs()) {
+  for(auto& [name, val] : circuit_.outputs()) {
     auto port = output_port_{};
 
     port.name   = name.c_str();
@@ -105,14 +105,14 @@ void jack_widget::register_ports_() {
     port.entry  = val;
     port.buffer = nullptr;
 
-    output_ports_.emplace_back(std::move(port));
+    output_ports_.emplace_back(port);
   }
 
 }
 
 jack_widget::~jack_widget() {
 
-  jack_deactivate(client_); //also disconnect ports
+  jack_deactivate(client_); //also disconnects ports
 
   free(known_sources_);
   free(known_sinks_);
@@ -131,11 +131,11 @@ void jack_widget::activate_(bool checked) {
   if(checked) {
     jack_activate(client_);
     connections_->connect_();
-    connections_->setDisabled(true);
+    connections_->setDisabled(true); //lock connection widget
   }
   else {
     jack_deactivate(client_);
-    connections_->setDisabled(false);
+    connections_->setDisabled(false); //unlock
   }
 }
 
@@ -162,7 +162,9 @@ int jack_widget::process_callback(jack_nframes_t n_frames, void* arg) {
   for(auto i = 0; i < n_frames; ++i) {
 
     for(auto& p : iports) *p.entry = p.buffer[i];
+
     this_->circuit_.advance_(this_->delta_t_);
+
     for(auto& p : oports) p.buffer[i] = *p.entry;
 
   }

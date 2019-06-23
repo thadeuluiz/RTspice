@@ -642,8 +642,8 @@ namespace rtspice::components {
   using ac_current = current_source<sine_function>;
   using ac_voltage = voltage_source<sine_function>;
 
-  using ext_voltage = voltage_source<external_function>;
   using ext_current = current_source<external_function>;
+  using ext_voltage = voltage_source<external_function>;
 
   using linear_vcvs = vcvs<linear_transfer>;
   using linear_vccs = vccs<linear_transfer>;

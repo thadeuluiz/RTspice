@@ -1,3 +1,4 @@
+#headers needed as compilation files for Qt
 set(sources include/main_window.hpp
             include/circuit_widget.hpp
             include/jack_widget.hpp
@@ -9,5 +10,13 @@ set(sources include/main_window.hpp
             src/knob.cpp)
 
 add_library(gui ${sources})
-target_include_directories(gui PUBLIC include/)
-target_link_libraries(gui PUBLIC parser Qt5::Widgets)
+
+target_include_directories(gui
+  PUBLIC
+  include/)
+
+target_link_libraries(gui
+  PUBLIC
+  circuit
+  parser
+  Qt5::Widgets)

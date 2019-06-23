@@ -47,6 +47,8 @@ namespace rtspice::circuit {
         indirect_{base},
         offset_{offset} {}
 
+      entry_reference(const entry_reference&) = default;
+
       inline auto& operator*() const noexcept {
         return (*indirect_)[offset_];
       }
