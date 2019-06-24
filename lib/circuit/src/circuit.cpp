@@ -19,12 +19,17 @@
 
 #include <cstdint>
 #include <algorithm>
+#ifdef RTSPICE_USE_PSTL
 #include <execution>
+#endif
 #include <numeric>
 
 using namespace std;
 
+
+#ifdef RTSPICE_USE_PSTL
 constexpr auto parallel_tag = execution::unsequenced_policy{};
+#endif
 
 namespace rtspice::circuit {
 
@@ -269,8 +274,14 @@ namespace rtspice::circuit {
     sys.A = sys.A_dynamic.get();
     sys.b = sys.b_dynamic.get();
 
+
+#if  RTSPICE_USE_PSTL
     copy_n(parallel_tag, sys.A_static.get(), nnz, sys.A);
     copy_n(parallel_tag, sys.b_static.get(), m,   sys.b);
+#else
+    copy_n(sys.A_static.get(), nnz, sys.A);
+    copy_n(sys.b_static.get(), m,   sys.b);
+#endif     // -----  RTSPICE_USE_PSTL  -----
 
     //load dynamic data
     for(auto&& c: components_.dynamic) c->fill();
@@ -280,7 +291,11 @@ namespace rtspice::circuit {
     if(i < 0) return i;
 
     //store new t1
+#if  RTSPICE_USE_PSTL
     copy_n(parallel_tag, sys.x, m, sys.x_state);
+#else
+    copy_n(sys.x, m, sys.x_state);
+#endif     // -----  RTSPICE_USE_PSTL  -----
 
     return i;
   }
@@ -305,8 +320,13 @@ namespace rtspice::circuit {
     for(int i = 1; i <= maxiter; ++i) {
 
       //get pre-fill
+#if  RTSPICE_USE_PSTL
       copy_n(parallel_tag, sys.A_dynamic.get(), nnz, sys.A);
       copy_n(parallel_tag, sys.b_dynamic.get(), m,   sys.b);
+#else
+      copy_n(sys.A_dynamic.get(), nnz, sys.A);
+      copy_n(sys.b_dynamic.get(), m,   sys.b);
+#endif     // -----  RTSPICE_USE_PSTL  -----
 
       //nonlinear fill
       for(auto&& c: components_.nonlinear) c->fill();
@@ -316,13 +336,20 @@ namespace rtspice::circuit {
 
       //update solution
       if(!solve_()) return -i;
-
+#if  RTSPICE_USE_PSTL
       auto good = std::transform_reduce(parallel_tag,
                                         sys.x, sys.x + nnz,
                                         sys.xn,
                                         true,
                                         logical_and<bool>{},
                                         close);
+#else
+      auto good = std::inner_product(sys.x, sys.x + nnz,
+                                     sys.xn,
+                                     true,
+                                     logical_and<bool>{},
+                                     close);
+#endif     // -----  RTSPICE_USE_PSTL  -----
 
       //all values converged
       if(good) return i;
