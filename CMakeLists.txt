@@ -14,7 +14,7 @@ find_package(Boost  REQUIRED)
 find_package(Qt5    COMPONENTS Core Widgets REQUIRED)
 find_package(CUDA   REQUIRED)
 find_package(OpenMP REQUIRED)
-find_package(TBB    REQUIRED)
+#find_package(TBB    REQUIRED)
 pkg_search_module(Jack REQUIRED jack)
 
 include(CTest)
