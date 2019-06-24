@@ -27,13 +27,13 @@ and `make` it. Should compilation succeed, you can check that the simulation
 works with the compiled tests and run the program with `./rtspice` and you'll
 be greeted with the blank entry screen:
 
-[home screen](images/entry_screen.png)
+![home screen](images/entry_screen.png)
 
 You may then open a netlist file (.net extension), and if the netlist has a
 proper syntax, you should see the simulation screen:
 
 
-[sim screen](images/control_example.png)
+![sim screen](images/control_example.png)
 
 Basic information, such as the circuit's name, the number of nonzero elements
 in the modified admittance matrix and the number of modified nodes can be seen
