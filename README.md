@@ -70,7 +70,7 @@ Based on this, this program provides an interface for a computer's audio ports
 to act as signal sources or measurements for electronic circuits. A difficulty
 arises in the needed time to solve said linear systems rapidly enough to keep
 up with the sound samples: for instance, a 44.100 kHz sampling rate requires
-the solution to be calculated in less than 23 $\mu$s. Considering this, it can
+the solution to be calculated in less than 23 μs. Considering this, it can
 be expected this software to work better with modest-sized circuits, however,
 the actual size you'll be able to consistently simulate will depend on your
 hardware.
