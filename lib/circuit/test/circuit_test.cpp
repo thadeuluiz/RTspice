@@ -30,6 +30,7 @@
 #include "sources.hpp"
 #include "dynamic.hpp"
 #include "opamp.hpp"
+#include "bipolar.hpp"
 
 
 using namespace std::string_literals;
@@ -379,4 +380,47 @@ SCENARIO("basic circuit simulation", "[circuit]") {
 
   }
 
+}
+
+SCENARIO("basic transistor simulation", "[bipolar_npn]") {
+  constexpr auto niter = 1024;
+  constexpr auto delta_t = 1e-5;
+
+  GIVEN("a common emmiter circuit") {
+
+    vector<component::ptr> components {
+      make_component<dc_voltage>      ("VCC", "VCC", "0", 9),
+      make_component<ac_voltage>      ("VIN", "0", "1", 100e-3, 1e3, 0.0f),
+      make_component<linear_capacitor>("CB",  "1", "B", 1e-6),
+      make_component<linear_resistor> ("R1", "VCC","B", 4.7e3),
+      make_component<linear_resistor> ("R2",  "B", "0", 1e3),
+      make_component<linear_resistor> ("RC", "VCC", "C", 4.7e3),
+      make_component<linear_resistor> ("RE", "E", "0", 1e3),
+      make_component<bipolar_npn>     ("Q1", "C", "B", "E", 3.83e-14, 324.4, 8.29),
+      make_component<linear_capacitor>("CE", "E", "0", 20e-6),
+      make_component<linear_capacitor>("CC", "C", "OUT", 1e-6),
+      make_component<linear_resistor> ("RL", "OUT", "0", 100e3),
+    };
+    circuit c{components};
+
+    THEN("simulation works") {
+
+      std::vector<float> vs;
+
+      //DC point simulation
+      for(auto i = 0; i < 100*niter; ++i) {
+        c.advance_(delta_t);
+      }
+
+      for(auto i = 0; i < niter; ++i) {
+        c.advance_(delta_t);
+        vs.push_back(*c.get_x("OUT"));
+      }
+
+      std::ofstream v_file("qsim_vout.txt");
+      std::copy(vs.cbegin(), vs.cend(), std::ostream_iterator<float>(v_file, "\n"));
+
+    }
+
+  }
 }

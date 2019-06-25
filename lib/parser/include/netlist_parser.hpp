@@ -2,8 +2,6 @@
  *    @file  netlist_parser.hpp
  *   @brief Circuit Netlist parser
  *
- *  <+DETAILED+>
- *
  *  @author  Thadeu Luiz Barbosa Dias (tlbd)
  *
  *  @internal
@@ -26,6 +24,7 @@
 #include "source_parser.hpp"
 #include "dynamic_parser.hpp"
 #include "opamp_parser.hpp"
+#include "bipolar_parser.hpp"
 
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
@@ -81,7 +80,8 @@ namespace rtspice::parser {
           | capacitor_
           | inductor_
           | diode_
-          | opamp_;
+          | opamp_
+          | bipolar_;
 
     }
 
@@ -95,6 +95,7 @@ namespace rtspice::parser {
       capacitor_parser     <Iterator, Skipper>   capacitor_;
       inductor_parser      <Iterator, Skipper>   inductor_;
       opamp_parser         <Iterator, Skipper>   opamp_;
+      bipolar_parser       <Iterator, Skipper>   bipolar_;
   };
 
 

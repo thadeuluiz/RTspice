@@ -84,13 +84,13 @@ syntax is similar but not exactly the same as
 [SPICE](http://bwrcs.eecs.berkeley.edu/Classes/IcBook/SPICE/)'s:
 
 * The first line of the netlist is a special comment containing the circuit name:
-	* `My little circuit`
+  * `My little circuit`
 * Lines beginning with asterisks(*) are considered comments and are ignored:
-	* *`Some witty comment`
+  * *Some witty comment
 * The rest of the lines are considered statements and go towards the circuit definition:
-	* `RL 0 1 2.2k`
+  * `RL 0 1 2.2k`
 * Multiline statements can be made prepending the sequenced lines with `+`:
-	* `Vin NODE_A NODE_B`<br/>`+EXT IN`
+  * `Vin NODE_A NODE_B`<br/>`+EXT IN`
 
 ## Components
 
@@ -114,6 +114,8 @@ The currently supported components are listed below:
 | Linear Inductor | `L{ID} {NODE_A} {NODE_B} {VALUE}` | `Lchoke vcc c 10m` | `VALUE` in Henrys |
 | Ideal OPAMP | `U{ID} {OUT+} {OUT-} {IN+} {IN-} OPAMP` | `U1 out 0 in out OPAMP` | Usually, `OUT-` should be grounded |
 | Basic Diode | `D{ID} {ANODE} {CATHODE} IS={IS} N={N}` | `D1 cut 0 IS=4.3n N=1.9`| `IS` is saturation current in Amperes, `N` is the emission coefficient |
+| Bipolar NPN | `Q{ID} {COLLECTOR} {BASE} {EMITTER} NPN IS={IS} BF={BF} BR={BR}` | `Q1 c b e NPN IS=3.84e-14 BF=324.4 BR=8.29`| `BF` is forward beta, `BR` is reverse beta |
+| Bipolar PNP | `Q{ID} {COLLECTOR} {BASE} {EMITTER} PNP IS={IS} BF={BF} BR={BR}` | `Q1 c b e PNP IS=3.84e-14 BF=324.4 BR=8.29`| |
 |PROBE | `PROBE {NODE}` | `PROBE OUT`| `PROBE` is how output variables are defined. For each `PROBE`d node, an output port becomes available to the user |
 
 ## Inputs, Outputs and Params
@@ -136,7 +138,7 @@ that will serve as an output port for the system.
     `RpotY @XY Y EXT -VAL PARAM`<br/>
     `RpotZ Y Z EXT VAL PARAM`<br>
 
-* Subcircuit models (i.e. Ebers-Moll, Compensated OPAMP)
+* Subcircuit models (i.e. compensated OPAMP)
 * JFET and MOSFETs
 * Nonlinear dynamic components
 
