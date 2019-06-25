@@ -142,4 +142,6 @@ that will serve as an output port for the system.
 * JFET and MOSFETs
 * Nonlinear dynamic components
 
+* A graphical circuit editor
+
 
