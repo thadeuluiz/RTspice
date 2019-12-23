@@ -22,6 +22,7 @@
 #include <fstream>
 #include <iterator>
 
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
 #include <catch2/catch.hpp>
 
 
@@ -37,9 +38,6 @@ using namespace std::string_literals;
 using namespace rtspice::components;
 
 using std::vector;
-
-using std::chrono::high_resolution_clock;
-using std::chrono::nanoseconds;
 
 using rtspice::circuit::circuit;
 
@@ -80,17 +78,12 @@ SCENARIO("circuit initialization", "[circuit]") {
       CHECK(*c.get_x("1") == Approx(1.0f));
       CHECK(*c.get_x("2") == Approx(0.5f));
 
-      constexpr auto NITER = 44100;
-
-      const auto start = high_resolution_clock::now();
-
-      for(auto i = 0; i < NITER; i++)
+      // check stability and benchmark
+      BENCHMARK("Newton-Raphson step on DC"){
         c.nr_step_();
+      };
 
-      const auto delta = high_resolution_clock::now() - start;
-      const auto avgTime = nanoseconds{delta}.count()/NITER;
 
-      INFO( "average iteration time: " << avgTime << " ns");
       CHECK(*c.get_x("1") == Approx(1.0f));
       CHECK(*c.get_x("2") == Approx(0.5f));
     }
@@ -111,36 +104,16 @@ SCENARIO("nonlinear simulation", "[circuit]") {
     circuit c{components};
 
     THEN("Newton-Raphson converges") {
-      {
-        const auto start = high_resolution_clock::now();
-
         const auto i = c.nr_step_();
-
-        const auto delta = high_resolution_clock::now() - start;
-        const auto RunTimeDC = nanoseconds{delta}.count();
-
-
-        INFO("DC Runtime =  " << RunTimeDC << " ns");
-        INFO("V[diode] = " << *c.get_x("2") << " V");
         CHECK( i > 0 );
-      }
-
-      {
-        const auto start = high_resolution_clock::now();
-
-        for(auto i = 0; i < 100; i++) c.nr_step_();
-
-        const auto delta = high_resolution_clock::now() - start;
-        const auto RunTimeBasicStep = nanoseconds{delta}.count();
-
-
-        INFO("Average Runtime Basic Step =  " << RunTimeBasicStep/100 << " ns");
-        INFO("V[diode] = " << *c.get_x("2") << " V");
-        REQUIRE(true);
-      }
-
     }
 
+
+    BENCHMARK("Newton-Raphson step on Diode"){
+      c.nr_step_();
+    };
+
+    INFO("V[diode] = " << *c.get_x("2") << " V");
   }
 
 }
@@ -162,14 +135,7 @@ SCENARIO("dynamic simulation", "[circuit]") {
     constexpr int   niter   = 10;
 
     THEN("time simulation converges") {
-      const auto start = high_resolution_clock::now();
-
       const auto i = c.advance_(delta_t);
-
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
-
-      INFO("Transient step Runtime =  " << RunTimeTran << " ns");
       INFO("V[cap] = " << *c.get_x("2") << " V");
       REQUIRE( i > 0 );
     }
@@ -181,23 +147,15 @@ SCENARIO("dynamic simulation", "[circuit]") {
 
       const auto vptr = c.get_x("2");
 
-      const auto start = high_resolution_clock::now();
-
       for(auto iter = 0; iter < niter; ++iter) {
         is[iter] = c.advance_(delta_t);
         vs[iter] = *vptr;
       }
 
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
-
       for(auto iter = 0; iter < niter; ++iter) {
         INFO("V[cap] = " << vs[iter] << " V");
         CHECK(is[iter] > 0);
       }
-      INFO("Transient step Runtime =  " << RunTimeTran/niter << " ns");
-      REQUIRE(true);
-
     }
 
   }
@@ -222,14 +180,7 @@ SCENARIO("nonlinear dynamic simulation", "[circuit]") {
     constexpr int   niter   = 10;
 
     THEN("time simulation converges") {
-      const auto start = high_resolution_clock::now();
-
       const auto i = c.advance_(delta_t);
-
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
-
-      INFO("Transient step Runtime =  " << RunTimeTran << " ns");
       INFO("V[cap] = " << *c.get_x("2") << " V");
       REQUIRE( i > 0 );
     }
@@ -241,22 +192,15 @@ SCENARIO("nonlinear dynamic simulation", "[circuit]") {
 
       const auto vptr = c.get_x("2");
 
-      const auto start = high_resolution_clock::now();
-
       for(auto iter = 0; iter < niter; ++iter) {
         is[iter] = c.advance_(delta_t);
         vs[iter] = *vptr;
       }
 
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
-
       for(auto iter = 0; iter < niter; ++iter) {
         INFO("V[cap] = " << vs[iter] << " V");
         REQUIRE(is[iter] > 0);
       }
-      INFO("Transient step Runtime =  " << RunTimeTran/niter << " ns");
-      REQUIRE(true);
 
     }
 
@@ -269,19 +213,12 @@ SCENARIO("nonlinear dynamic simulation", "[circuit]") {
 
       const auto vptr = c.get_x("2");
 
-      const auto start = high_resolution_clock::now();
-
       for(auto iter = 0; iter < sim_size; ++iter) {
         is[iter] = c.advance_(delta_t);
         vs[iter] = *vptr;
       }
 
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
-
       REQUIRE(std::all_of(is.cbegin(), is.cend(), [](auto i){ return i > 0; }));
-      INFO("Transient step Runtime =  " << RunTimeTran/sim_size << " ns");
-      REQUIRE(true);
 
       std::ofstream v_file("sim_v.txt");
       std::copy(vs.cbegin(), vs.cend(), std::ostream_iterator<float>(v_file, "\n"));
@@ -337,45 +274,24 @@ SCENARIO("basic circuit simulation", "[circuit]") {
     circuit c{components};
 
     constexpr float delta_t = 1.0 / 44100.0;
-    constexpr int   niter   = 44100;
 
     THEN("basic simulation") {
 
       //std::vector<float> vs(niter);
-      std::vector<int>   is(niter);
+      std::vector<int>   is;
       //std::vector<std::chrono::time_point<high_resolution_clock>> ts(niter);
 
       const auto vptr = c.get_x("7");
 
       //c.nr_step_(); //dc point
 
-      const auto start = high_resolution_clock::now();
+      BENCHMARK_ADVANCED("basic simulation")(Catch::Benchmark::Chronometer meter) {
+        auto niter = meter.runs();
+        is.resize(niter);
+        meter.measure([&](auto i){ is[i] = c.advance_(delta_t); });
+      };
 
-      for(auto iter = 0; iter < niter; ++iter) {
-        is[iter] = c.advance_(delta_t);
-        //vs[iter] = *vptr;
-        //ts[iter] = high_resolution_clock::now();
-      }
-
-      const auto delta = high_resolution_clock::now() - start;
-      const auto RunTimeTran = nanoseconds{delta}.count();
       CHECK(std::all_of(is.cbegin(), is.cend(), [](auto i){ return i > 0; }));
-
-      const auto inner_it = std::accumulate(is.cbegin(), is.cend(), 0);
-
-      INFO("Average solve runtime =  " << RunTimeTran/inner_it << " ns");
-      REQUIRE(true);
-
-      //std::ofstream v_file("sim_vout.txt");
-      //std::copy(vs.cbegin(), vs.cend(), std::ostream_iterator<float>(v_file, "\n"));
-
-      //std::ofstream i_file("sim_steps.txt");
-      //std::copy(is.cbegin(), is.cend(), std::ostream_iterator<int>(i_file, "\n"));
-
-      //std::ofstream t_file("sim_times.txt");
-      //auto it = std::ostream_iterator<int>(t_file, "\n");
-      //for(auto i = 1; i < niter; ++i)
-      //  *it++ = nanoseconds{ts[i] - ts[i-1]}.count();
     }
 
   }

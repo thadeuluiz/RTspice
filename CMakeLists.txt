@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(PkgConfig REQUIRED)
 
 # external packages
+find_package(Catch2 REQUIRED)
 find_package(Boost  REQUIRED)
 find_package(Qt5    COMPONENTS Core Widgets REQUIRED)
 find_package(CUDA   REQUIRED)

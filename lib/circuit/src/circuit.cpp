@@ -172,31 +172,30 @@ namespace rtspice::circuit {
     assert(row_begin == nodes_.pointers.end() && "not all coordinates used");
 
     //get optimal pattern
-    const auto perm = std::make_unique<int[]>(m);
+    int perm[m];
     auto status = cusolverSpXcsrsymmdqHost(context_.solver_handle, m, nnz,
-        sys.desc_A, sys.row.get(), sys.col.get(), perm.get());
+        sys.desc_A, sys.row.get(), sys.col.get(), perm);
     assert(status == CUSOLVER_STATUS_SUCCESS);
 
     //allocate permutation worksize
     size_t bsize;
     status = cusolverSpXcsrperm_bufferSizeHost(context_.solver_handle, m, m, nnz,
-       sys.desc_A, sys.row.get(), sys.col.get(), perm.get(), perm.get(), &bsize);
+       sys.desc_A, sys.row.get(), sys.col.get(), perm, perm, &bsize);
     assert(status == CUSOLVER_STATUS_SUCCESS);
 
-    const auto work = std::make_unique<uint8_t[]>(bsize);
-    const auto map  = std::make_unique<int[]>(nnz);
-    iota(map.get(), map.get()+nnz, 0);
+    uint8_t work[bsize];
+    int     map[nnz];
+    iota(map, map+nnz, 0);
 
     //perform Q * A * Q^T
     status = cusolverSpXcsrpermHost(context_.solver_handle, m, m, nnz,
        sys.desc_A, sys.row.get(), sys.col.get(),
-       perm.get(), perm.get(), map.get(),
-       work.get());
+       perm, perm, map, work);
     assert(status == CUSOLVER_STATUS_SUCCESS);
 
     //update node name map
     for(auto&& [_, idx]: nodes_.names)
-      idx = find(perm.get(), perm.get()+m, idx) - perm.get();
+      idx = find(perm, perm+m, idx) - perm;
 
     for(auto&& kv: nodes_.pointers){
 
