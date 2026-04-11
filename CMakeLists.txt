@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.15)
 project(rtspice LANGUAGES C CXX)
+project(rtspice VERSION 0.1.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
@@ -7,25 +8,32 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(PkgConfig REQUIRED)
+include(FetchContent)
 
 # external packages
-find_package(Catch2 REQUIRED)
 find_package(Boost  REQUIRED)
-find_package(Qt5    COMPONENTS Core Widgets REQUIRED)
 find_package(CUDA   REQUIRED)
 find_package(OpenMP REQUIRED)
-#find_package(TBB    REQUIRED)
-pkg_search_module(Jack REQUIRED jack)
 
 include(CTest)
+if(BUILD_TESTING)
+  FetchContent_Declare(
+    catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.7.1
+  )
+  FetchContent_MakeAvailable(catch2)
+  list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+endif()
 
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_AUTOMOC ON)
+FetchContent_Declare(
+  juce
+  GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+  GIT_TAG 8.0.6
+)
+FetchContent_MakeAvailable(juce)
 
-add_subdirectory(third_party/)
 add_subdirectory(lib/)
-add_subdirectory(test/)
-
-add_executable(rtspice main.cpp)
-target_link_libraries(rtspice PUBLIC circuit jack gui Qt5::Widgets)
+if(BUILD_TESTING)
+  add_subdirectory(test/)
+endif()

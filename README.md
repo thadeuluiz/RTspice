@@ -7,45 +7,29 @@ A netlist-based realtime audio circuit simulator
 * C++17
 * [CUDA](https://developer.nvidia.com/cuda-zone)
 *  [Boost.Spirit](https://www.boost.org/)
-*  [JACK Audio Connection Kit](http://jackaudio.org/)
 * [Catch2](https://github.com/catchorg/Catch2)
-* [Qt5](https://www.qt.io/)
+* VST3-capable host/DAW
 
 ## Getting started
 
-I recommend to obtain the dependencies through your distribution's package
-manager (Ubuntu has JACK on the default repo and the DBUS version on some PPAs,
-arch linux also has most of the dependencies on the default repo, and the rest
-can be installed from AUR). The JACK configuration can be tricky if your
-distribution depends on PulseAudio, however, the D-Bus version should make
-it easier to setup.
+Once all dependencies are installed, clone this repository and build:
 
-Once all dependencies are installed, `git clone --recurse-submodules` this
-repository into a directory of your choice, create a build directory
-`mkdir build`, configure the project with `cmake .. -DCMAKE_BUILD_TYPE=Release`
-and `make` it. Should compilation succeed, you can check that the simulation
-works with the compiled tests and run the program with `./rtspice` and you'll
-be greeted with the blank entry screen:
+```bash
+mkdir -p build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j"$(nproc)"
+```
 
-![home screen](images/entry_screen.png)
+This builds the RTspice VST3 plugin (JUCE target `rtspice`). Open the plugin in
+your VST3 host and use **Open netlist (.net)** to load a circuit.
 
-You may then open a netlist file (.net extension), and if the netlist has a
-proper syntax, you should see the simulation screen:
+Run tests with:
 
-
-![sim screen](images/control_example.png)
-
-Basic information, such as the circuit's name, the number of nonzero elements
-in the modified admittance matrix and the number of modified nodes can be seen
-top left.
-
-Information regarding JACK processing load, ports and connections lies top right.
-Once you've chosen the appropriate input and output connections, press
-'Activate' to begin simulation.
-
-For circuits containing parametrized components (i.e. variable resistors,
-capacitors or inductors), knobs will be visible on the bottom of the screen.
-The 'Log' checkbox switches the knob control pattern from linear to logarithmic.
+```bash
+cd build
+ctest --output-on-failure
+```
 
 # How it works?
 
@@ -143,5 +127,4 @@ that will serve as an output port for the system.
 * Nonlinear dynamic components
 
 * A graphical circuit editor
-
 

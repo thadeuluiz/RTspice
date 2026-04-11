@@ -22,8 +22,7 @@
 #include <fstream>
 #include <iterator>
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 
 #include "circuit.hpp"
@@ -75,8 +74,8 @@ SCENARIO("circuit initialization", "[circuit]") {
 
       c.nr_step_();
 
-      CHECK(*c.get_x("1") == Approx(1.0f));
-      CHECK(*c.get_x("2") == Approx(0.5f));
+      CHECK(*c.get_x("1") == Catch::Approx(1.0f));
+      CHECK(*c.get_x("2") == Catch::Approx(0.5f));
 
       // check stability and benchmark
       BENCHMARK("Newton-Raphson step on DC"){
@@ -84,8 +83,8 @@ SCENARIO("circuit initialization", "[circuit]") {
       };
 
 
-      CHECK(*c.get_x("1") == Approx(1.0f));
-      CHECK(*c.get_x("2") == Approx(0.5f));
+      CHECK(*c.get_x("1") == Catch::Approx(1.0f));
+      CHECK(*c.get_x("2") == Catch::Approx(0.5f));
     }
 
   }

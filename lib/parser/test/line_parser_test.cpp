@@ -18,7 +18,7 @@
 #include <string>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include "netlist_parser.hpp"
 
 using namespace std::string_literals;

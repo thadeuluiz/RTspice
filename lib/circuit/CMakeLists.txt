@@ -1,8 +1,12 @@
 add_library(circuit src/circuit.cpp)
+set_target_properties(circuit PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(circuit
   PUBLIC
-  include/
+  include/)
+
+target_include_directories(circuit
+  SYSTEM PUBLIC
   ${CUDA_INCLUDE_DIRS}
   ${TBB_INCLUDE_DIRS})
 
@@ -15,4 +19,6 @@ target_link_libraries(circuit
   ${TBB_LIBRARIES}
   OpenMP::OpenMP_CXX)
 
-add_subdirectory(test/)
+if(BUILD_TESTING)
+  add_subdirectory(test/)
+endif()

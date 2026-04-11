@@ -1,5 +1,5 @@
 add_executable(line_parser_test line_parser_test.cpp)
-target_link_libraries(line_parser_test PRIVATE parser test_main)
+target_link_libraries(line_parser_test PRIVATE parser Catch2::Catch2WithMain)
 
 add_executable(component_parser_test component_parser_test.cpp)
-target_link_libraries(component_parser_test PRIVATE parser test_main)
+target_link_libraries(component_parser_test PRIVATE parser Catch2::Catch2WithMain)

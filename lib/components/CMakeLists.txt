@@ -9,4 +9,6 @@ target_link_libraries(components
   circuit)
 
 
-add_subdirectory(test/)
+if(BUILD_TESTING)
+  add_subdirectory(test/)
+endif()

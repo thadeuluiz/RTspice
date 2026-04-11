@@ -4,9 +4,15 @@ target_include_directories(parser
   INTERFACE
   include/)
 
+target_include_directories(parser
+  SYSTEM INTERFACE
+  ${Boost_INCLUDE_DIRS})
+
 target_link_libraries(parser
   INTERFACE
   components
   Boost::boost) # for Boost.Spirit
 
-add_subdirectory(test/)
+if(BUILD_TESTING)
+  add_subdirectory(test/)
+endif()

@@ -1,0 +1,11 @@
+Simple diode distortion (line-in/line-out scaled)
+* Host input sample (EXT IN) is treated as normalized audio [-1, 1].
+* EIN scales to ~+4 dBu line level (1.736 Vpk), and EOUT scales back.
+VINRAW INRAW 0 EXT IN
+EIN IN 0 INRAW 0 1.736
+RIN IN CLIP 10k
+RLEAK CLIP 0 1000k
+D1 CLIP 0 IS=4.3n N=1.9
+D2 0 CLIP IS=4.3n N=1.9
+EOUT OUT 0 CLIP 0 0.576
+PROBE OUT

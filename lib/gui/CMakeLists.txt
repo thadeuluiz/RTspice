@@ -1,24 +1,37 @@
-#headers needed as compilation files for Qt
-set(sources include/main_window.hpp
-            include/circuit_widget.hpp
-            include/jack_widget.hpp
-            include/knob.hpp
+juce_add_plugin(rtspice
+  COMPANY_NAME RTspice
+  IS_SYNTH FALSE
+  NEEDS_MIDI_INPUT FALSE
+  NEEDS_MIDI_OUTPUT FALSE
+  IS_MIDI_EFFECT FALSE
+  EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+  COPY_PLUGIN_AFTER_BUILD FALSE
+  PLUGIN_MANUFACTURER_CODE RtSp
+  PLUGIN_CODE RtS1
+  FORMATS VST3
+  PRODUCT_NAME "RTspice")
 
-            src/main_window.cpp
-            src/circuit_widget.cpp
-            src/jack_widget.cpp
-            src/knob.cpp)
+target_sources(rtspice
+  PRIVATE
+    include/plugin_editor.hpp
+    include/plugin_processor.hpp
+    src/plugin_editor.cpp
+    src/plugin_processor.cpp)
 
-add_library(gui ${sources})
+target_include_directories(rtspice
+  PRIVATE
+    include/)
 
-target_include_directories(gui
-  PUBLIC
-  include/
-  ${Jack_INCLUDE_DIRS})
+target_link_libraries(rtspice
+  PRIVATE
+    circuit
+    parser
+    juce::juce_audio_processors
+    juce::juce_gui_basics
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags)
 
-target_link_libraries(gui
-  PUBLIC
-  circuit
-  parser
-  ${Jack_LIBRARIES}
-  Qt5::Widgets)
+target_compile_definitions(rtspice
+  PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0)

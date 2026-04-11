@@ -15,7 +15,7 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "netlist_parser.hpp"
 
@@ -336,4 +336,3 @@ SCENARIO("OPAMP parsing", "[statement_parser]") {
     }
   }
 }
-
